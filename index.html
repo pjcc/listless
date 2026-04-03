@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.recaptcha.net https://api.microlink.io https://noembed.com https://listless-meta.piers-carrigan.workers.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; frame-src https://accounts.google.com https://www.recaptcha.net https://*.firebaseapp.com;">
   <title>Listless</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' font-size='80' text-anchor='middle' dominant-baseline='central'>🔗</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
   <style>
     :root, [data-theme="dark"] {
       --bg: #111118;
@@ -1095,6 +1097,11 @@
     messagingSenderId: "387333075083",
     appId: "1:387333075083:web:728c8e297198709237a48e"
   });
+  /* UPDATE: Replace with your own reCAPTCHA v3 site key from https://www.google.com/recaptcha/admin */
+  /* UPDATE: Also register the secret key in Firebase Console > App Check > reCAPTCHA */
+  const appCheck = firebase.appCheck();
+  appCheck.activate('6Lf1QKUsAAAAANX8YRmPvG9ITBVAfIgQ-9n_7l4b', true);
+
   const auth = firebase.auth();
   const db = firebase.firestore();
   const googleProvider = new firebase.auth.GoogleAuthProvider();

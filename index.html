@@ -1276,6 +1276,30 @@
     ).catch(() => {});
   }
 
+  async function resolvePendingInvites() {
+    /* Check invites collection for this user's email */
+    try {
+      const snap = await db.collection('invites').where('email', '==', currentUser.email).get();
+      for (const inv of snap.docs) {
+        const { listId } = inv.data();
+        const listDoc = await db.collection('lists').doc(listId).get();
+        if (!listDoc.exists) { inv.ref.delete(); continue; }
+        const data = listDoc.data();
+        const member = data.members?.find(m => m.email === currentUser.email);
+        if (member) {
+          member.uid = currentUser.uid;
+          member.displayName = currentUser.displayName || '';
+          delete member.pending;
+          const uids = data.members.filter(m => m.uid).map(m => m.uid);
+          await db.collection('lists').doc(listId).update({ members: data.members, memberUids: uids });
+        }
+        await inv.ref.delete();
+      }
+    } catch (e) {
+      console.warn('Resolve invites failed:', e);
+    }
+  }
+
   function active() { return state.lists.find(l => l.id === state.activeListId); }
 
   /* ---- Auth ---- */
@@ -1318,6 +1342,7 @@
       $('#appMain').style.display = '';
       authBtn.style.visibility = '';
       firestoreReady = true;
+      await resolvePendingInvites();
       await loadFromFirestore();
     } else {
       if (_unsub) { _unsub(); _unsub = null; }
@@ -1854,6 +1879,8 @@
       list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
       list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
       save();
+      /* Create invite doc so their sign-in resolves it */
+      db.collection('invites').add({ email, listId: list.id, invitedBy: currentUser.uid }).catch(() => {});
       renderListMenu();
     };
 

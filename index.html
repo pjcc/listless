@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Listless</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' font-size='80' text-anchor='middle' dominant-baseline='central'>🔗</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg: #111118;
+      --surface: #1a1a26;
+      --surface-alt: #1e1e2a;
+      --surface-hover: #27273a;
+      --surface-active: #252540;
+      --border: #2e2e3e;
+      --border-hover: #4a4a5e;
+      --text: #e4e4e7;
+      --text-muted: #8888a0;
+      --text-faint: #6b6b80;
+      --text-ghost: #44445a;
+      --text-invis: #2e2e40;
+      --accent: #818cf8;
+      --accent-solid: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-bg: #252540;
+      --accent-fg: #5b5fc7;
+      --err: #f87171;
+      --err-bg: #2a1a1a;
+      --price: #4ade80;
+      --price-hover: #6ee7a0;
+      --skel-a: #22222e;
+      --skel-b: #2a2a3a;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.35);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.4);
+      --shadow-drag: 0 10px 30px rgba(0,0,0,0.4);
+      --preview-border: #3b3b5c;
+      --fallback-a: #252540;
+      --fallback-b: #1e1e2a;
+      --input-bg: #16161f;
+    }
+
+    [data-theme="light"] {
+      --bg: #f5f5f7;
+      --surface: #ffffff;
+      --surface-alt: #ffffff;
+      --surface-hover: #f3f4f6;
+      --surface-active: #eef2ff;
+      --border: #e5e7eb;
+      --border-hover: #c7c8d9;
+      --text: #1e1e2e;
+      --text-muted: #6b7280;
+      --text-faint: #9ca3af;
+      --text-ghost: #b0b8c8;
+      --text-invis: #c7c8d9;
+      --accent: #6366f1;
+      --accent-solid: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-bg: #eef2ff;
+      --accent-fg: #a5b4fc;
+      --err: #ef4444;
+      --err-bg: #fee2e2;
+      --price: #16a34a;
+      --price-hover: #15803d;
+      --skel-a: #f0f0f3;
+      --skel-b: #e2e4e8;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 14px rgba(0,0,0,0.09);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+      --shadow-drag: 0 10px 30px rgba(0,0,0,0.15);
+      --preview-border: #c7d2fe;
+      --fallback-a: #e0e7ff;
+      --fallback-b: #f5f5f7;
+      --input-bg: #f9fafb;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .app {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      font-size: 1.375rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span { color: var(--accent); }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .theme-btn {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface-alt);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: border-color 0.15s;
+      line-height: 1;
+    }
+
+    .theme-btn:hover { border-color: var(--border-hover); }
+
+    /* ---- List selector ---- */
+    .list-selector { position: relative; }
+
+    .list-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--surface-alt);
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      font: 500 0.875rem/1 inherit;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .list-toggle:hover { border-color: var(--border-hover); }
+
+    .list-toggle svg {
+      width: 12px;
+      height: 12px;
+      color: var(--text-faint);
+      transition: transform 0.2s;
+    }
+
+    .list-selector.open .list-toggle svg { transform: rotate(180deg); }
+
+    .list-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 220px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      z-index: 50;
+      padding: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-6px) scale(0.97);
+      transition: all 0.18s cubic-bezier(.4,0,.2,1);
+    }
+
+    .list-selector.open .list-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    .list-menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .list-menu-item:hover { background: var(--surface-hover); }
+    .list-menu-item.active { background: var(--surface-active); color: var(--accent); font-weight: 500; }
+
+    .list-item-actions {
+      display: flex;
+      gap: 2px;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .list-menu-item:hover .list-item-actions { opacity: 1; }
+
+    .list-action {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border: none;
+      background: none;
+      border-radius: 6px;
+      color: var(--text-faint);
+      cursor: pointer;
+      font-size: 0.8125rem;
+      transition: all 0.1s;
+    }
+
+    .list-action:hover { background: var(--surface-hover); color: var(--text-muted); }
+    .list-action.danger:hover { background: var(--err-bg); color: var(--err); }
+
+    .list-menu-div {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 8px;
+    }
+
+    .list-menu-new {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .list-menu-new:hover { background: var(--surface-hover); }
+
+    /* ---- Input ---- */
+    .input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .url-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font: 0.9375rem/1.4 inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .url-input:focus { border-color: var(--accent); }
+    .url-input::placeholder { color: var(--text-ghost); }
+
+    .btn-add {
+      padding: 12px 22px;
+      background: var(--accent-solid);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font: 500 0.9375rem/1 inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-add:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-add:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .fetch-error {
+      font-size: 0.8125rem;
+      color: var(--err);
+      margin-bottom: 8px;
+      animation: fadeSlide 0.2s ease;
+    }
+
+    /* ---- Preview ---- */
+    .preview-wrap {
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .preview-wrap.visible { display: block; }
+
+    .preview-badge {
+      font: 600 0.6875rem/1 inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-faint);
+      margin-bottom: 8px;
+    }
+
+    .preview-card {
+      display: flex;
+      background: var(--surface);
+      border: 2px dashed var(--preview-border);
+      border-radius: 12px;
+      overflow: hidden;
+      animation: fadeSlide 0.25s ease;
+    }
+
+    /* Skeleton */
+    .skel-card {
+      display: flex;
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      padding: 16px;
+      gap: 14px;
+    }
+
+    .skel {
+      background: linear-gradient(90deg, var(--skel-a) 25%, var(--skel-b) 50%, var(--skel-a) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s ease infinite;
+      border-radius: 6px;
+    }
+
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .skel-img { width: 96px; height: 72px; flex-shrink: 0; border-radius: 8px; }
+    .skel-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .skel-line { height: 14px; border-radius: 4px; }
+    .skel-line:nth-child(1) { width: 55%; }
+    .skel-line:nth-child(2) { width: 85%; height: 12px; }
+    .skel-line:nth-child(3) { width: 30%; height: 12px; }
+
+    /* ---- Card (shared) ---- */
+    .card-thumb {
+      width: 110px;
+      flex-shrink: 0;
+      background-size: cover;
+      background-position: center;
+      background-color: var(--surface-alt);
+    }
+
+    .card-thumb-fallback {
+      width: 110px;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--fallback-a) 0%, var(--fallback-b) 100%);
+      display: grid;
+      place-items: center;
+      font: 700 1.25rem/1 inherit;
+      color: var(--accent-fg);
+    }
+
+    .card-body {
+      flex: 1;
+      padding: 10px 14px;
+      min-width: 0;
+    }
+
+    .card-body > * + * {
+      margin-top: 3px;
+    }
+
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .card-title {
+      font: 600 0.9375rem/1.3 inherit;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      outline: none;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .btn-edit-title {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-invis);
+      font-size: 0.75rem;
+      padding: 0 2px;
+      line-height: 1;
+      transition: color 0.1s;
+      opacity: 0;
+    }
+
+    .item:hover .btn-edit-title { opacity: 1; }
+    .btn-edit-title:hover { color: var(--accent); }
+
+    .item .card-title.editing {
+      border-color: var(--accent);
+      background: var(--input-bg);
+      cursor: text;
+      white-space: normal;
+      overflow: visible;
+      padding: 1px 3px;
+    }
+
+    .card-desc {
+      font: 0.8125rem/1.4 inherit;
+      color: var(--text-muted);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-domain {
+      display: flex;
+      align-items: center;
+      gap: 2px 5px;
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      margin-top: 2px;
+    }
+
+    .card-domain img {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    .card-publisher {
+      font-size: 0.6875rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-faint);
+      margin-top: 4px;
+      line-height: 1.3;
+      padding: 0;
+      height: 20px;
+      overflow: hidden;
+    }
+
+    .card-meta:has(.editing) {
+      height: auto;
+    }
+
+    .meta-sep {
+      color: var(--text-ghost);
+      font-size: 0.6rem;
+    }
+
+    /* Shared inline-editable field */
+    .inline-field {
+      cursor: pointer;
+      transition: color 0.1s;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 0;
+      margin: 0;
+      outline: none;
+      min-height: 0;
+      line-height: inherit;
+    }
+
+    .price-field {
+      font-weight: 600;
+      color: var(--price);
+      width: 5ch;
+      flex-shrink: 0;
+    }
+
+    .price-field:hover { color: var(--price-hover); }
+    .price-field.empty { font-weight: 400; color: var(--text-invis); }
+    .price-field.empty:hover { color: var(--text-ghost); }
+    .price-field.editing { border-color: var(--price); background: var(--input-bg); cursor: text; padding: 1px 3px; }
+
+    .note-field {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .note-field:hover { color: var(--text); }
+    .note-field.empty { color: var(--text-invis); }
+    .note-field.empty:hover { color: var(--text-ghost); }
+    .note-field.editing {
+      border-color: var(--accent);
+      background: var(--input-bg);
+      cursor: text;
+      white-space: pre-wrap;
+      overflow: visible;
+      padding: 1px 3px;
+    }
+
+    /* ---- Items ---- */
+    .items-label {
+      font: 600 0.6875rem/1 inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-faint);
+      margin-bottom: 10px;
+    }
+
+    .items-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item {
+      display: flex;
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.15s, opacity 0.25s, transform 0.25s;
+    }
+
+    .item:hover { box-shadow: var(--shadow-md); }
+
+    .item.removing {
+      opacity: 0;
+      transform: scale(0.96) translateX(20px);
+    }
+
+    .item.loading .card-thumb-fallback,
+    .item.loading .card-thumb {
+      animation: shimmer 1.4s ease infinite;
+      background-size: 200% 100%;
+    }
+
+    .item.loading .card-thumb-fallback {
+      background: linear-gradient(90deg, var(--skel-a) 25%, var(--skel-b) 50%, var(--skel-a) 75%);
+      background-size: 200% 100%;
+    }
+
+    .item .card-body .card-title { cursor: pointer; }
+    .item .card-body .card-title:hover { color: var(--accent); }
+
+    /* Thumbnail as drag handle */
+    .item .card-thumb,
+    .item .card-thumb-fallback {
+      cursor: grab;
+      position: relative;
+    }
+
+    .item .card-thumb:active,
+    .item .card-thumb-fallback:active {
+      cursor: grabbing;
+    }
+
+    .btn-upload-img {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.55);
+      border: none;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 0.7rem;
+      color: #fff;
+      opacity: 0;
+      transition: opacity 0.15s;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .item:hover .btn-upload-img { opacity: 1; }
+    .btn-upload-img:hover { background: rgba(0,0,0,0.75); }
+
+    .item-actions {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      width: 32px;
+    }
+
+    .btn-refresh {
+      display: grid;
+      place-items: center;
+      flex: 0 0 28px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-invis);
+      font-size: 0.8rem;
+      transition: all 0.15s;
+      padding: 0;
+    }
+
+    .btn-refresh:hover { color: var(--accent); }
+    .btn-refresh.spinning { animation: spin 0.6s linear; pointer-events: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-remove {
+      display: grid;
+      place-items: center;
+      flex: 1;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-invis);
+      font-size: 1.1rem;
+      transition: all 0.1s;
+    }
+
+    .btn-remove:hover { color: var(--err); background: var(--err-bg); }
+
+    /* SortableJS */
+    .sortable-ghost { opacity: 0.35; }
+    .sortable-drag { box-shadow: var(--shadow-drag); border-radius: 12px; }
+
+    /* Empty */
+    .empty {
+      text-align: center;
+      padding: 52px 24px;
+      color: var(--text-ghost);
+    }
+
+    .empty-icon { font-size: 2rem; margin-bottom: 10px; opacity: 0.5; }
+    .empty-text { font-size: 0.9375rem; line-height: 1.5; }
+
+    /* ---- Undo toast ---- */
+    .undo-toast {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font: 0.8125rem/1 inherit;
+      color: var(--text-muted);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+      opacity: 0;
+      transition: transform 0.25s cubic-bezier(.4,0,.2,1), opacity 0.25s;
+      pointer-events: none;
+    }
+
+    .undo-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .undo-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font: 600 0.8125rem/1 inherit;
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.1s;
+    }
+
+    .undo-btn:hover { color: var(--accent-hover); }
+
+    /* ---- Modal ---- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      padding-top: 15vh;
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.15s, visibility 0.15s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      width: min(360px, calc(100vw - 40px));
+      height: fit-content;
+      box-shadow: var(--shadow-lg);
+      transform: scale(0.95);
+      transition: transform 0.15s;
+    }
+
+    .modal-overlay.open .modal {
+      transform: scale(1);
+    }
+
+    .modal-title {
+      font: 600 1rem/1 inherit;
+      margin-bottom: 16px;
+    }
+
+    .modal-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      font: 0.9375rem/1.4 inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .modal-input:focus { border-color: var(--accent); }
+    .modal-input::placeholder { color: var(--text-ghost); }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .modal-btn {
+      padding: 8px 18px;
+      border-radius: 8px;
+      font: 500 0.875rem/1 inherit;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+
+    .modal-btn-cancel {
+      background: var(--surface-hover);
+      color: var(--text-muted);
+    }
+
+    .modal-btn-cancel:hover { background: var(--border); }
+
+    .modal-btn-confirm {
+      background: var(--accent-solid);
+      color: #fff;
+    }
+
+    .modal-btn-confirm:hover { background: var(--accent-hover); }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 520px) {
+      .app { padding: 20px 14px 48px; }
+      .card-thumb, .card-thumb-fallback { width: 76px; }
+      .input-row { flex-direction: column; }
+      .btn-add { width: 100%; padding: 14px; }
+      .card-desc { -webkit-line-clamp: 1; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="brand">List<span>less</span></div>
+    <div class="header-controls">
+      <button class="theme-btn" id="themeBtn" title="Toggle light/dark"></button>
+      <div class="list-selector" id="listSelector">
+        <button class="list-toggle" id="listToggle">
+          <span id="activeLabel">My Links</span>
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5l3 3 3-3"/></svg>
+        </button>
+        <div class="list-menu" id="listMenu"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="input-row">
+    <input type="url" class="url-input" id="urlInput" placeholder="Paste a link..." autocomplete="off" spellcheck="false">
+    <button class="btn-add" id="btnAdd" disabled>Add</button>
+  </div>
+  <div id="fetchError"></div>
+
+  <div class="preview-wrap" id="previewWrap">
+    <div class="preview-badge">Preview</div>
+    <div id="previewSlot"></div>
+  </div>
+
+  <div id="itemsSection">
+    <div class="items-label" id="itemsLabel"></div>
+    <div class="items-container" id="itemsContainer"></div>
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">🔗</div>
+      <div class="empty-text">No links yet<br>Paste a URL above to get started</div>
+    </div>
+  </div>
+</div>
+
+<div class="undo-toast" id="undoToast">
+  <span id="undoMsg"></span>
+  <button class="undo-btn" id="undoBtn">Undo</button>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle"></div>
+    <input class="modal-input" id="modalInput" autocomplete="off" spellcheck="false">
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" id="modalCancel">Cancel</button>
+      <button class="modal-btn modal-btn-confirm" id="modalConfirm">Save</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="imgUpload" accept="image/*" hidden>
+
+<script>
+(() => {
+  /* ---- State ---- */
+  const KEY = 'listless';
+  let state = { lists: [], activeListId: null };
+  let pendingUrl = null;   // URL currently being fetched for preview
+  let preview = null;      // fetched metadata
+  let abortCtrl = null;
+  let sortable = null;
+  let imgUploadTarget = null;
+
+  /* ---- DOM refs ---- */
+  const $ = s => document.querySelector(s);
+  const urlInput    = $('#urlInput');
+  const btnAdd      = $('#btnAdd');
+  const previewWrap = $('#previewWrap');
+  const previewSlot = $('#previewSlot');
+  const fetchError  = $('#fetchError');
+  const imgUpload   = $('#imgUpload');
+
+  /* ---- Helpers ---- */
+  const uid = () => crypto.randomUUID?.() ??
+    'xxxx-xxxx-4xxx-yxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+
+  function debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+
+  function domain(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch { return url; }
+  }
+
+  function titleFromSlug(url) {
+    try {
+      const path = new URL(url).pathname;
+      const last = path.split('/').filter(Boolean).pop() || '';
+      const clean = last.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+      if (clean.length < 3) return null;
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    } catch { return null; }
+  }
+
+  function validUrl(s) {
+    try { return /^https?:$/.test(new URL(s).protocol); }
+    catch { return false; }
+  }
+
+  function normaliseUrl(raw) {
+    let url = raw.trim();
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    return validUrl(url) ? url : null;
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /* ---- Theme ---- */
+  function initTheme() {
+    const saved = localStorage.getItem('listless_theme');
+    const theme = saved || 'dark';
+    document.documentElement.dataset.theme = theme;
+    updateThemeIcon(theme);
+  }
+
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('listless_theme', next);
+    updateThemeIcon(next);
+  }
+
+  function updateThemeIcon(theme) {
+    $('#themeBtn').textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+
+  $('#themeBtn').addEventListener('click', toggleTheme);
+
+  /* ---- Storage ---- */
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) state = JSON.parse(raw);
+    } catch { /* empty */ }
+
+    if (!state.lists?.length) {
+      const id = uid();
+      state = {
+        lists: [{ id, name: 'My Links', items: [], createdAt: new Date().toISOString() }],
+        activeListId: id
+      };
+      save();
+    }
+    if (!active()) state.activeListId = state.lists[0].id;
+  }
+
+  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+  function active() { return state.lists.find(l => l.id === state.activeListId); }
+
+  /* ---- Metadata fetching ---- */
+  function isBadTitle(title, url) {
+    if (!title) return true;
+    if (!/\s/.test(title) && /[?=\/]/.test(title)) return true;
+    if (title === domain(url)) return true;
+    return false;
+  }
+
+  async function fetchNoembed(url, signal) {
+    const r = await fetch(
+      `https://noembed.com/embed?url=${encodeURIComponent(url)}`,
+      { signal }
+    );
+    const j = await r.json();
+    if (j.error) return null;
+    return {
+      title: j.title || null,
+      description: null,
+      image: j.thumbnail_url || null,
+      publisher: j.provider_name || null
+    };
+  }
+
+  async function fetchMeta(url, signal) {
+    let meta = { url, title: domain(url), description: '', image: null, logo: null, publisher: null };
+    try {
+      const r = await fetch(
+        `https://api.microlink.io?url=${encodeURIComponent(url)}`,
+        { signal }
+      );
+      const j = await r.json();
+      if (j.status === 'success' && j.data) {
+        meta = {
+          url,
+          title: j.data.title || domain(url),
+          description: j.data.description || '',
+          image: j.data.image?.url || null,
+          logo: j.data.logo?.url || null,
+          publisher: j.data.publisher || null
+        };
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+    }
+
+    if (isBadTitle(meta.title, url)) {
+      try {
+        const nb = await fetchNoembed(url, signal);
+        if (nb) {
+          meta.title = nb.title || meta.title;
+          meta.image = meta.image || nb.image;
+          meta.publisher = meta.publisher || nb.publisher;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+      }
+    }
+
+    if (isBadTitle(meta.title, url)) {
+      meta.title = titleFromSlug(url) || domain(url);
+    }
+
+    return meta;
+  }
+
+  /* ---- Card HTML fragments ---- */
+  function thumbHtml(data, cls, showUpload) {
+    const img = data.customImage || data.image;
+    const uploadBtn = showUpload
+      ? `<button class="btn-upload-img" data-action="upload-img" data-id="${data.id}" title="Upload image">&#x1f4f7;</button>`
+      : '';
+    if (img) {
+      return `<div class="${cls}" style="background-image:url('${esc(img)}')">${uploadBtn}</div>`;
+    }
+    return `<div class="${cls}-fallback">${(data.title || '?')[0].toUpperCase()}${uploadBtn}</div>`;
+  }
+
+  function bodyHtml(data) {
+    const logo = data.logo
+      ? `<img src="${esc(data.logo)}" alt="" onerror="this.remove()">`
+      : '';
+    const pub = data.publisher
+      ? `<span class="card-publisher">${esc(data.publisher)}</span>`
+      : '';
+    return `
+      <div class="card-body">
+        <div class="card-title">${esc(data.title)}</div>
+        ${data.description ? `<div class="card-desc">${esc(data.description)}</div>` : ''}
+        <div class="card-domain">${logo}${pub}<span>${esc(domain(data.url))}</span></div>
+      </div>`;
+  }
+
+  /* ---- Preview ---- */
+  function showSkeleton() {
+    previewWrap.classList.add('visible');
+    previewSlot.innerHTML = `
+      <div class="skel-card">
+        <div class="skel skel-img"></div>
+        <div class="skel-lines">
+          <div class="skel skel-line"></div>
+          <div class="skel skel-line"></div>
+          <div class="skel skel-line"></div>
+        </div>
+      </div>`;
+  }
+
+  function showPreview(data) {
+    previewWrap.classList.add('visible');
+    previewSlot.innerHTML = `
+      <div class="preview-card">
+        ${thumbHtml(data, 'card-thumb')}
+        ${bodyHtml(data)}
+      </div>`;
+  }
+
+  function clearPreview() {
+    previewWrap.classList.remove('visible');
+    previewSlot.innerHTML = '';
+    preview = null;
+    pendingUrl = null;
+    btnAdd.disabled = true;
+    fetchError.innerHTML = '';
+  }
+
+  async function onUrlChange(raw) {
+    fetchError.innerHTML = '';
+    if (!raw) { clearPreview(); return; }
+
+    const url = normaliseUrl(raw);
+    if (!url) { clearPreview(); return; }
+
+    pendingUrl = url;
+    btnAdd.disabled = false;   /* enable Add immediately */
+    if (abortCtrl) abortCtrl.abort();
+    abortCtrl = new AbortController();
+    showSkeleton();
+
+    try {
+      preview = await fetchMeta(url, abortCtrl.signal);
+      preview.id = uid();
+      if (pendingUrl === url) showPreview(preview);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      preview = { id: uid(), url, title: domain(url), description: '', image: null, logo: null, publisher: null };
+      if (pendingUrl === url) showPreview(preview);
+      fetchError.innerHTML = '<div class="fetch-error">Couldn\'t fetch full metadata</div>';
+    }
+  }
+
+  let _urlTimer;
+  function debouncedUrl(v) { clearTimeout(_urlTimer); _urlTimer = setTimeout(() => onUrlChange(v), 700); }
+  function cancelDebouncedUrl() { clearTimeout(_urlTimer); }
+
+  urlInput.addEventListener('input', () => {
+    const raw = urlInput.value.trim();
+    const url = normaliseUrl(raw || '');
+    btnAdd.disabled = !url;
+    debouncedUrl(raw);
+  });
+  urlInput.addEventListener('paste', () => setTimeout(() => {
+    const raw = urlInput.value.trim();
+    const url = normaliseUrl(raw || '');
+    btnAdd.disabled = !url;
+    onUrlChange(raw);
+  }, 50));
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !btnAdd.disabled) addItem(); });
+  btnAdd.addEventListener('click', addItem);
+
+  /* ---- Undo ---- */
+  let undoTimer = null;
+  let undoAction = null;
+
+  function showUndo(msg, fn) {
+    clearTimeout(undoTimer);
+    undoAction = fn;
+    $('#undoMsg').textContent = msg;
+    const toast = $('#undoToast');
+    toast.classList.add('visible');
+    undoTimer = setTimeout(() => { toast.classList.remove('visible'); undoAction = null; }, 5000);
+  }
+
+  $('#undoBtn').addEventListener('click', () => {
+    if (undoAction) undoAction();
+    undoAction = null;
+    clearTimeout(undoTimer);
+    $('#undoToast').classList.remove('visible');
+  });
+
+  /* ---- Add / Remove ---- */
+  function addItem() {
+    const raw = urlInput.value.trim();
+    const url = normaliseUrl(raw || '');
+    if (!url) return;
+
+    const id = uid();
+    const item = preview
+      ? { ...preview, id, note: '', price: '', addedAt: new Date().toISOString() }
+      : { id, url, title: domain(url), description: '', image: null, logo: null, publisher: null, note: '', price: '', addedAt: new Date().toISOString() };
+
+    const needsFetch = !preview;
+    if (needsFetch) item._loading = true;
+    active().items.unshift(item);
+    save();
+    cancelDebouncedUrl();
+    if (abortCtrl) { abortCtrl.abort(); abortCtrl = null; }
+    clearPreview();
+    urlInput.value = '';
+    urlInput.focus();
+    renderItems();
+
+    /* If added before preview loaded, fetch in background */
+    if (needsFetch) {
+      const ctrl = new AbortController();
+      fetchMeta(url, ctrl.signal).then(meta => {
+        const stored = active()?.items.find(i => i.id === id);
+        if (!stored) return;
+        stored.title = meta.title;
+        stored.description = meta.description;
+        stored.image = meta.image;
+        stored.logo = meta.logo;
+        stored.publisher = meta.publisher;
+        delete stored._loading;
+        save();
+        renderItems();
+      }).catch(() => {});
+    }
+  }
+
+  function removeItem(id) {
+    const el = document.querySelector(`.item[data-id="${id}"]`);
+    if (!el) return;
+    const list = active();
+    const idx = list.items.findIndex(i => i.id === id);
+    const removed = list.items[idx];
+
+    el.classList.add('removing');
+    setTimeout(() => {
+      list.items.splice(idx, 1);
+      save();
+      renderItems();
+    }, 280);
+
+    showUndo('Link removed', () => {
+      list.items.splice(idx, 0, removed);
+      save();
+      renderItems();
+    });
+  }
+
+  /* ---- Refresh metadata ---- */
+  async function refreshItem(id, btn) {
+    const item = active()?.items.find(i => i.id === id);
+    if (!item) return;
+    if (item.customImage && !confirm('Custom image will be replaced by fetched metadata. Continue?')) return;
+    btn.classList.add('spinning');
+    try {
+      const ctrl = new AbortController();
+      const meta = await fetchMeta(item.url, ctrl.signal);
+      item.title = meta.title;
+      item.description = meta.description;
+      item.image = meta.image;
+      item.logo = meta.logo;
+      item.publisher = meta.publisher;
+      delete item.customImage;
+      save();
+      renderItems();
+    } catch (e) {
+      if (e.name !== 'AbortError') btn.classList.remove('spinning');
+    }
+  }
+
+  /* ---- Render items ---- */
+  function renderItems() {
+    const list = active();
+    const container = $('#itemsContainer');
+    const empty = $('#emptyState');
+    const label = $('#itemsLabel');
+
+    if (!list || !list.items.length) {
+      container.innerHTML = '';
+      empty.style.display = '';
+      label.textContent = '';
+      return;
+    }
+
+    empty.style.display = 'none';
+    const n = list.items.length;
+    label.textContent = `${n} link${n === 1 ? '' : 's'}`;
+
+    container.innerHTML = list.items.map(item => {
+      const logo = item.logo
+        ? `<img src="${esc(item.logo)}" alt="" onerror="this.remove()">`
+        : '';
+      const pub = item.publisher
+        ? `<span class="card-publisher">${esc(item.publisher)}</span>`
+        : '';
+      const hasNote = item.note?.trim();
+      const hasPrice = item.price?.trim();
+
+      return `
+      <div class="item ${item._loading ? 'loading' : ''}" data-id="${item.id}">
+        ${thumbHtml(item, 'card-thumb', true)}
+        <div class="card-body">
+          <div class="card-title-row"><div class="card-title" data-action="open" data-url="${esc(item.url)}" data-field="title" data-id="${item.id}">${esc(item.title || domain(item.url))}</div><button class="btn-edit-title" data-action="edit-title" data-id="${item.id}" title="Edit title">&#9998;</button></div>
+          ${item.description ? `<div class="card-desc">${esc(item.description)}</div>` : ''}
+          <div class="card-domain">${logo}${pub}<span>${esc(domain(item.url))}</span></div>
+          <div class="card-meta"><span class="inline-field price-field ${hasPrice ? '' : 'empty'}" data-field="price" data-id="${item.id}">${hasPrice ? esc(item.price) : '£'}</span> <span class="meta-sep">&bull;</span> <span class="inline-field note-field ${hasNote ? '' : 'empty'}" data-field="note" data-id="${item.id}">${hasNote ? esc(item.note) : 'note'}</span></div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-refresh" data-action="refresh" data-id="${item.id}" title="Re-fetch metadata">&#x21bb;</button>
+          <button class="btn-remove" data-action="remove" data-id="${item.id}" title="Remove">&times;</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    initSortable();
+  }
+
+  /* ---- SortableJS ---- */
+  function initSortable() {
+    if (sortable) sortable.destroy();
+    sortable = new Sortable($('#itemsContainer'), {
+      animation: 200,
+      filter: '.inline-field, .meta-sep, .card-meta, .card-domain, .card-title, .item-actions, .btn-remove, .btn-refresh, .btn-upload-img',
+      preventOnFilter: false,
+      delay: 120,
+      delayOnTouchOnly: true,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      onEnd(evt) {
+        const items = active().items;
+        const [moved] = items.splice(evt.oldIndex, 1);
+        items.splice(evt.newIndex, 0, moved);
+        save();
+      }
+    });
+  }
+
+  /* ---- List management ---- */
+  function renderListMenu() {
+    const menu = $('#listMenu');
+    const single = state.lists.length === 1;
+
+    menu.innerHTML = state.lists.map(l => `
+      <div class="list-menu-item ${l.id === state.activeListId ? 'active' : ''}" data-action="switch-list" data-id="${l.id}">
+        <span>${esc(l.name)}</span>
+        <div class="list-item-actions">
+          <button class="list-action" data-action="rename-list" data-id="${l.id}" title="Rename">&#9998;</button>
+          ${single ? '' : `<button class="list-action danger" data-action="delete-list" data-id="${l.id}" title="Delete">&times;</button>`}
+        </div>
+      </div>
+    `).join('') + `
+      <div class="list-menu-div"></div>
+      <div class="list-menu-new" data-action="new-list">+ New List</div>
+    `;
+
+    $('#activeLabel').textContent = active()?.name || '';
+  }
+
+  function toggleMenu(force) {
+    $('#listSelector').classList.toggle('open', force);
+  }
+
+  function switchList(id) {
+    state.activeListId = id;
+    save();
+    renderListMenu();
+    renderItems();
+    toggleMenu(false);
+  }
+
+  /* ---- Modal ---- */
+  const modalOverlay = $('#modalOverlay');
+  const modalTitle   = $('#modalTitle');
+  const modalInput   = $('#modalInput');
+  const modalConfirm = $('#modalConfirm');
+  const modalCancel  = $('#modalCancel');
+  let modalCallback  = null;
+
+  function openModal(title, value, placeholder, cb) {
+    modalTitle.textContent = title;
+    modalInput.value = value;
+    modalInput.placeholder = placeholder || '';
+    modalCallback = cb;
+    modalOverlay.classList.add('open');
+    setTimeout(() => {
+      modalInput.focus();
+      modalInput.selectionStart = modalInput.selectionEnd = modalInput.value.length;
+    }, 50);
+  }
+
+  function closeModal() {
+    modalOverlay.classList.remove('open');
+    modalCallback = null;
+  }
+
+  function confirmModal() {
+    const val = modalInput.value.trim();
+    if (val && modalCallback) modalCallback(val);
+    closeModal();
+  }
+
+  modalConfirm.addEventListener('click', confirmModal);
+  modalCancel.addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+  modalInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmModal(); if (e.key === 'Escape') closeModal(); });
+
+  function createList() {
+    toggleMenu(false);
+    openModal('New list', '', 'List name', name => {
+      if (state.lists.some(l => l.name === name)) return;
+      const id = uid();
+      state.lists.push({ id, name, items: [], createdAt: new Date().toISOString() });
+      state.activeListId = id;
+      save();
+      renderListMenu();
+      renderItems();
+    });
+  }
+
+  function renameList(id) {
+    const list = state.lists.find(l => l.id === id);
+    if (!list) return;
+    toggleMenu(false);
+    openModal('Rename list', list.name, 'List name', name => {
+      if (name === list.name) return;
+      if (state.lists.some(l => l.name === name && l.id !== id)) return;
+      list.name = name;
+      save();
+      renderListMenu();
+    });
+  }
+
+  function deleteList(id) {
+    if (state.lists.length <= 1) return;
+    const list = state.lists.find(l => l.id === id);
+    if (!list) return;
+    const n = list.items.length;
+    const msg = n
+      ? `Delete "${list.name}" and its ${n} link${n === 1 ? '' : 's'}?`
+      : `Delete "${list.name}"?`;
+    if (!confirm(msg)) return;
+    state.lists = state.lists.filter(l => l.id !== id);
+    if (state.activeListId === id) state.activeListId = state.lists[0].id;
+    save();
+    renderListMenu();
+    renderItems();
+  }
+
+  /* ---- Event delegation ---- */
+  document.addEventListener('click', e => {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+
+    switch (target.dataset.action) {
+      case 'switch-list': switchList(target.dataset.id); break;
+      case 'rename-list': renameList(target.dataset.id); break;
+      case 'delete-list': deleteList(target.dataset.id); break;
+      case 'new-list':    createList(); break;
+      case 'remove':      removeItem(target.dataset.id); break;
+      case 'refresh':     refreshItem(target.dataset.id, target); break;
+      case 'open':        window.open(target.dataset.url, '_blank', 'noopener'); break;
+      case 'edit-title': {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const titleEl = target.closest('.card-title-row')?.querySelector('.card-title');
+        if (titleEl) setTimeout(() => startEditing(titleEl), 0);
+        break;
+      }
+      case 'upload-img': {
+        e.stopImmediatePropagation();
+        imgUploadTarget = target.dataset.id;
+        imgUpload.click();
+        break;
+      }
+    }
+  });
+
+  /* ---- Image upload ---- */
+  imgUpload.addEventListener('change', () => {
+    const file = imgUpload.files[0];
+    if (!file || !imgUploadTarget) { imgUpload.value = ''; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const item = active()?.items.find(i => i.id === imgUploadTarget);
+      if (item) {
+        item.customImage = reader.result;
+        save();
+        renderItems();
+      }
+      imgUpload.value = '';
+      imgUploadTarget = null;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  /* Inline-editable fields: click to edit, blur to save */
+  function startEditing(field) {
+    if (field.isContentEditable) return;
+    field.classList.add('editing');
+    field.classList.remove('empty');
+    const id = field.dataset.id;
+    const type = field.dataset.field;
+    const item = active()?.items.find(i => i.id === id);
+    if (!item) return;
+
+    field.textContent = item[type] || '';
+    field.contentEditable = 'plaintext-only';
+    field.focus();
+
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(field);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  document.addEventListener('click', e => {
+    const field = e.target.closest('.inline-field');
+    if (field) startEditing(field);
+  });
+
+  function saveField(field) {
+    const id = field.dataset.id;
+    const type = field.dataset.field;
+    const item = active()?.items.find(i => i.id === id);
+    if (!item) return;
+
+    const val = field.textContent.trim();
+    item[type] = val;
+    save();
+
+    field.contentEditable = 'false';
+    field.classList.remove('editing');
+
+    if (type === 'title') {
+      field.textContent = val || domain(item.url);
+    } else {
+      const placeholder = type === 'price' ? '£' : 'note';
+      field.textContent = val || placeholder;
+      field.classList.toggle('empty', !val);
+    }
+  }
+
+  document.addEventListener('focusout', e => {
+    const field = e.target.closest('.inline-field.editing, .card-title.editing');
+    if (field) saveField(field);
+  });
+
+  /* Enter to save; Shift/Ctrl+Enter for newline in notes */
+  document.addEventListener('keydown', e => {
+    if (!e.target.matches('.inline-field.editing, .card-title.editing')) return;
+
+    if (e.key === 'Enter') {
+      const isNote = e.target.dataset.field === 'note';
+      if (!isNote || (!e.shiftKey && !e.ctrlKey)) {
+        e.preventDefault();
+        e.target.blur();
+      }
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
+  $('#listToggle').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', e => {
+    if (!$('#listSelector').contains(e.target)) toggleMenu(false);
+  });
+
+  /* ---- Init ---- */
+  initTheme();
+  load();
+  renderListMenu();
+  renderItems();
+  urlInput.focus();
+})();
+</script>
+</body>
+</html>

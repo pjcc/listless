@@ -3,8 +3,9 @@ export default {
     const url = new URL(request.url).searchParams.get('url');
     if (!url) return Response.json({ error: 'Missing url param' }, { status: 400 });
 
+    /* Restrict to your own domains - update these before deploying */
     const origin = request.headers.get('Origin') || '';
-    const allowed = ['pjcc.github.io', 'piers.qa', 'localhost'];
+    const allowed = ['localhost'];
     if (origin && !allowed.some(h => origin.includes(h))) {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }

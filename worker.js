@@ -10,6 +10,22 @@ export default {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    /* Block SSRF: only allow http(s) to public hosts */
+    try {
+      const parsed = new URL(url);
+      if (!/^https?:$/.test(parsed.protocol)) {
+        return Response.json({ error: 'Invalid protocol' }, { status: 400 });
+      }
+      const host = parsed.hostname;
+      if (host === 'localhost' || host.startsWith('127.') || host.startsWith('10.') ||
+          host.startsWith('192.168.') || host.startsWith('172.') || host === '0.0.0.0' ||
+          host.endsWith('.local') || host.endsWith('.internal') || host === '[::1]') {
+        return Response.json({ error: 'Private addresses not allowed' }, { status: 400 });
+      }
+    } catch {
+      return Response.json({ error: 'Invalid URL' }, { status: 400 });
+    }
+
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {

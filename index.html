@@ -1137,11 +1137,23 @@
 
   function titleFromSlug(url) {
     try {
-      const path = new URL(url).pathname;
-      const last = path.split('/').filter(Boolean).pop() || '';
-      const clean = last.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
-      if (clean.length < 3) return null;
-      return clean.charAt(0).toUpperCase() + clean.slice(1);
+      const segments = new URL(url).pathname.split('/').filter(Boolean);
+
+      /* Amazon: use the product name segment before /dp/ */
+      const dpIdx = segments.indexOf('dp');
+      if (dpIdx > 0) {
+        const clean = segments[dpIdx - 1].replace(/[-_]+/g, ' ').trim();
+        if (clean.length >= 3) return clean.charAt(0).toUpperCase() + clean.slice(1);
+      }
+
+      /* General: pick the longest segment that contains letters */
+      let best = '';
+      for (const seg of segments) {
+        const clean = seg.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+        if (clean.length > best.length && /[a-z]/i.test(clean)) best = clean;
+      }
+      if (best.length < 3) return null;
+      return best.charAt(0).toUpperCase() + best.slice(1);
     } catch { return null; }
   }
 
@@ -1492,6 +1504,24 @@
       }
     }
 
+    /* Cloudflare Worker proxy: fetches OG tags like a real browser */
+    if (isBadTitle(meta.title, url) || (!meta.image && !meta.description)) {
+      try {
+        const r = await fetch(
+          `https://listless-meta.piers-carrigan.workers.dev/?url=${encodeURIComponent(url)}`,
+          { signal }
+        );
+        const w = await r.json();
+        if (w.title && !isBadTitle(w.title, url)) meta.title = w.title;
+        if (!meta.description && w.description) meta.description = w.description;
+        if (!meta.image && w.image) meta.image = w.image;
+        if (!meta.publisher && w.site_name) meta.publisher = w.site_name;
+        if (w.price) meta.price = w.price;
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+      }
+    }
+
     if (isBadTitle(meta.title, url)) {
       meta.title = titleFromSlug(url) || domain(url);
     }
@@ -1630,7 +1660,7 @@
 
     const id = uid();
     const item = preview
-      ? { ...preview, id, note: '', price: '', addedAt: new Date().toISOString() }
+      ? { ...preview, id, note: '', price: preview.price || '', addedAt: new Date().toISOString() }
       : { id, url, title: domain(url), description: '', image: null, logo: null, publisher: null, note: '', price: '', addedAt: new Date().toISOString() };
 
     const needsFetch = !preview;

@@ -1086,6 +1086,7 @@
 (() => {
   /* ---- State ---- */
   /* ---- Firebase ---- */
+  /* UPDATE: Replace with your own Firebase project config */
   firebase.initializeApp({
     apiKey: "AIzaSyDBkrbakBiiFKOIXidYErhSEp-tDTAOJxc",
     authDomain: "listless-70dd1.firebaseapp.com",
@@ -1508,7 +1509,7 @@
     if (isBadTitle(meta.title, url) || (!meta.image && !meta.description)) {
       try {
         const r = await fetch(
-          `https://listless-meta.piers-carrigan.workers.dev/?url=${encodeURIComponent(url)}`,
+          `https://listless-meta.piers-carrigan.workers.dev/?url=${encodeURIComponent(url)}`, /* UPDATE: Replace with your own Cloudflare Worker URL */
           { signal }
         );
         const w = await r.json();
@@ -2020,7 +2021,7 @@
           to: email,
           message: {
             subject: `${currentUser.displayName || 'Someone'} shared a list with you on Listless`,
-            html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="https://pjcc.github.io/listless/">Open Listless</a> and sign in with this email to access it.</p>`
+            html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="https://pjcc.github.io/listless/">Open Listless</a> and sign in with this email to access it.</p>` /* UPDATE: Replace with your own app URL */
           }
         }).catch(() => {});
         renderMembersSection();

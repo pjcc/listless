@@ -813,7 +813,7 @@
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 24px;
-      width: min(360px, calc(100vw - 40px));
+      width: min(460px, calc(100vw - 40px));
       height: fit-content;
       box-shadow: var(--shadow-lg);
       transform: scale(0.95);
@@ -873,6 +873,84 @@
     }
 
     .modal-btn-confirm:hover { background: var(--accent-hover); }
+
+    /* ---- Edit list / members ---- */
+    .edit-members-section {
+      margin: 16px 0 0;
+    }
+
+    .members-label {
+      font: 600 0.6875rem/1 inherit;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-faint);
+      margin-bottom: 8px;
+    }
+
+    .member-row {
+      display: flex;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 0.8125rem;
+      gap: 8px;
+    }
+
+    .member-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .member-you { color: var(--text-faint); font-size: 0.75rem; }
+    .member-pending { color: var(--text-ghost); font-size: 0.75rem; font-style: italic; }
+
+    .role-toggle {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .role-option {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      cursor: pointer;
+      color: var(--text-ghost);
+      transition: all 0.1s;
+      user-select: none;
+    }
+
+    .role-option:hover:not(.active):not(.readonly) { color: var(--text-muted); }
+    .role-option.active { color: var(--accent); font-weight: 600; background: var(--accent-bg); cursor: default; }
+    .role-option.readonly { cursor: default; }
+
+    .member-remove {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: none;
+      border-radius: 4px;
+      color: var(--text-ghost);
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: all 0.1s;
+      flex-shrink: 0;
+    }
+
+    .member-remove:hover { background: var(--err-bg); color: var(--err); }
+
+    .collab-icon { filter: brightness(0) invert(1); display: inline; font-size: 0.85em; }
+
+    .add-member-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
 
     /* ---- Shared view ---- */
     .shared-banner {
@@ -949,6 +1027,7 @@
       <div class="share-selector" id="shareSelector">
         <button class="toolbar-btn" id="shareToggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12l-7-7v4C7 9 4 14 3 19c2.5-3.5 6-5 11-5v4l7-7z"/></svg></button>
         <div class="share-menu" id="shareMenu">
+          <div class="share-menu-item" id="btnCollab"><span class="share-icon collab-icon">&#x1f465;</span> <span id="collabLabel">Make collaborative</span></div>
           <div class="share-menu-item" id="btnShare"><span class="share-icon">&#x1f517;</span> Share list (read only)</div>
           <div class="share-menu-item" id="btnExport"><span class="share-icon">&#x2913;</span> Export as JSON</div>
           <div class="share-menu-item" id="btnImport"><span class="share-icon">&#x2912;</span> Import from JSON</div>
@@ -1144,6 +1223,7 @@
     if (!list || !currentUser) return;
     clearTimeout(_saveTimers[list.id]);
     _saveTimers[list.id] = setTimeout(() => {
+      delete _saveTimers[list.id];
       const data = JSON.parse(JSON.stringify(list));
       delete data._remote;
       db.collection('lists').doc(list.id).set({
@@ -1172,43 +1252,10 @@
     list.memberEmails = list.members.map(m => m.email).filter(Boolean);
   }
 
-  async function migrateOldData() {
-    /* Check for old-format data in users/{uid} and migrate to lists collection */
-    try {
-      const doc = await db.collection('users').doc(currentUser.uid).get();
-      if (!doc.exists || !doc.data().state?.lists?.length) return false;
-      const oldState = doc.data().state;
-      for (const list of oldState.lists) {
-        list.members = [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }];
-        list.memberUids = [currentUser.uid];
-        list.memberEmails = [currentUser.email];
-        await db.collection('lists').doc(list.id).set({
-          ...list,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      }
-      /* Clear old data */
-      await db.collection('users').doc(currentUser.uid).set({
-        email: currentUser.email,
-        migrated: true,
-        activeListId: oldState.activeListId
-      });
-      return true;
-    } catch (e) {
-      console.warn('Migration failed:', e);
-      return false;
-    }
-  }
-
   async function loadFromFirestore() {
     try {
-      /* Check if migration needed */
-      const userDoc = await db.collection('users').doc(currentUser.uid).get();
-      if (userDoc.exists && userDoc.data().state && !userDoc.data().migrated) {
-        await migrateOldData();
-      }
-
       /* Load activeListId preference */
+      const userDoc = await db.collection('users').doc(currentUser.uid).get();
       if (userDoc.exists && userDoc.data().activeListId) {
         state.activeListId = userDoc.data().activeListId;
       }
@@ -1223,6 +1270,23 @@
       byEmail.docs.forEach(d => allDocs.set(d.id, d));
       if (allDocs.size) {
         state.lists = [...allDocs.values()].map(d => ({ ...d.data(), id: d.id, _remote: true }));
+
+        /* Resolve any pending memberships for this user directly on list docs */
+        for (const list of state.lists) {
+          const member = list.members?.find(m => m.email === currentUser.email && (m.pending || !m.uid));
+          if (member) {
+            member.uid = currentUser.uid;
+            member.displayName = currentUser.displayName || '';
+            delete member.pending;
+            rebuildMemberArrays(list);
+            db.collection('lists').doc(list.id).update({
+              members: list.members,
+              memberUids: list.memberUids,
+              memberEmails: list.memberEmails
+            }).catch(() => {});
+          }
+        }
+
         if (!active()) state.activeListId = state.lists[0].id;
       } else {
         /* Brand new user: create default list */
@@ -1726,10 +1790,9 @@
       const owner = isOwner(l);
       return `
       <div class="list-menu-item ${l.id === state.activeListId ? 'active' : ''}" data-action="switch-list" data-id="${l.id}">
-        <span>${collab ? '&#x1f465; ' : ''}${esc(l.name)}</span>
+        <span>${collab ? '<span class="collab-icon">&#x1f465;</span> ' : ''}${esc(l.name)}</span>
         <div class="list-item-actions">
-          ${owner ? `<button class="list-action" data-action="manage-members" data-id="${l.id}" title="Members">&#x1f465;</button>` : ''}
-          <button class="list-action" data-action="rename-list" data-id="${l.id}" title="Rename">&#9998;</button>
+          ${owner ? `<button class="list-action" data-action="edit-list" data-id="${l.id}" title="Edit">&#9998;</button>` : ''}
           ${single ? '' : `<button class="list-action danger" data-action="delete-list" data-id="${l.id}" title="Delete">&times;</button>`}
         </div>
       </div>`;
@@ -1739,7 +1802,7 @@
     `;
 
     const act = active();
-    $('#activeLabel').textContent = (act ? (isCollaborative(act) ? '\u{1f465} ' : '') + act.name : '');
+    $('#activeLabel').innerHTML = (act ? (isCollaborative(act) ? '<span class="collab-icon">\u{1f465}</span> ' : '') + esc(act.name) : '');
   }
 
   function toggleMenu(force) {
@@ -1832,17 +1895,141 @@
     });
   }
 
-  function renameList(id) {
-    const list = state.lists.find(l => l.id === id);
+  function editList(id, focusMembers) {
+    const getList = () => state.lists.find(l => l.id === id);
+    let list = getList();
     if (!list) return;
     toggleMenu(false);
-    openModal('Rename list', list.name, 'List name', name => {
-      if (name === list.name) return;
-      if (state.lists.some(l => l.name === name && l.id !== id)) return;
-      list.name = name;
-      save();
-      renderListMenu();
+    $('#shareSelector').classList.remove('open');
+
+    /* Clean up any leftover members section from a previous open */
+    const stale = modalOverlay.querySelector('.edit-members-section');
+    if (stale) stale.remove();
+
+    modalTitle.textContent = 'Edit list';
+    modalInput.style.display = '';
+    modalInput.value = list.name;
+    modalInput.placeholder = 'List name';
+    modalConfirm.textContent = 'Save';
+    modalIsConfirm = false;
+
+    if (!isOwner(list)) { modalInput.disabled = true; }
+
+    const membersDiv = document.createElement('div');
+    membersDiv.className = 'edit-members-section';
+
+    function renderMembersSection() {
+      list = getList() || list;
+      const owner = isOwner(list);
+      const members = list.members || [];
+      membersDiv.innerHTML = `
+        <div class="members-label">Members</div>
+        ${members.map(m => {
+          const you = m.uid && m.uid === currentUser?.uid;
+          const canEdit = owner && !you;
+          const name = m.displayName || m.email || 'Unknown';
+          return `<div class="member-row">
+            <span class="member-name">${esc(name)}${m.pending ? ' <span class="member-pending">(pending)</span>' : ''}${you ? ' <span class="member-you">(you)</span>' : ''}</span>
+            <div class="role-toggle">
+              <span class="role-option ${m.role === 'owner' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="owner" data-uid="${m.uid || ''}" data-email="${m.email || ''}">owner</span>
+              <span class="role-option ${m.role === 'member' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="member" data-uid="${m.uid || ''}" data-email="${m.email || ''}">member</span>
+            </div>
+            ${canEdit ? `<button class="member-remove" data-uid="${m.uid || ''}" data-email="${m.email || ''}" title="Remove">&#x2715;</button>` : ''}
+          </div>`;
+        }).join('')}
+        ${owner ? `<div class="add-member-row">
+          <input class="modal-input" style="flex:1;padding:8px 12px;font-size:0.8125rem" placeholder="Add by email...">
+          <button class="modal-btn modal-btn-confirm" style="padding:8px 14px;font-size:0.8125rem" data-add-member>Add</button>
+        </div>` : ''}
+      `;
+    }
+
+    renderMembersSection();
+
+    membersDiv.addEventListener('click', e => {
+      list = getList() || list;
+
+      const roleOpt = e.target.closest('.role-option:not(.active):not(.readonly)');
+      if (roleOpt) {
+        const mUid = roleOpt.dataset.uid;
+        const mEmail = roleOpt.dataset.email;
+        const newRole = roleOpt.dataset.role;
+        const m = list.members.find(m => (mUid && m.uid === mUid) || (mEmail && m.email === mEmail));
+        if (m) {
+          m.role = newRole;
+          rebuildMemberArrays(list);
+          save();
+          renderMembersSection();
+          renderListMenu();
+        }
+      }
+
+      const removeBtn = e.target.closest('.member-remove');
+      if (removeBtn) {
+        const mUid = removeBtn.dataset.uid;
+        const mEmail = removeBtn.dataset.email;
+        list.members = list.members.filter(m => !((mUid && m.uid === mUid) || (mEmail && m.email === mEmail)));
+        rebuildMemberArrays(list);
+        save();
+        renderMembersSection();
+        renderListMenu();
+      }
+
+      const addBtn = e.target.closest('[data-add-member]');
+      if (addBtn) {
+        const input = membersDiv.querySelector('.add-member-row input');
+        const email = input?.value.trim();
+        if (!email || list.members.some(m => m.email === email)) return;
+        list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
+        rebuildMemberArrays(list);
+        save();
+        db.collection('invites').add({ email, listId: list.id, invitedBy: currentUser.uid }).catch(() => {});
+        renderMembersSection();
+        renderListMenu();
+        const newInput = membersDiv.querySelector('.add-member-row input');
+        if (newInput) { newInput.value = ''; newInput.focus(); }
+      }
     });
+
+    membersDiv.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.closest('.add-member-row')) {
+        e.preventDefault();
+        membersDiv.querySelector('[data-add-member]')?.click();
+      }
+    });
+
+    modalCallback = name => {
+      list = getList() || list;
+      const owner = isOwner(list);
+      if (owner && name && name !== list.name && !state.lists.some(l => l.name === name && l.id !== id)) {
+        list.name = name;
+        save();
+        renderListMenu();
+      }
+    };
+
+    const modal = modalOverlay.querySelector('.modal');
+    const actions = modal.querySelector('.modal-actions');
+    modal.insertBefore(membersDiv, actions);
+    modalOverlay.classList.add('open');
+
+    const origClose = closeModal;
+    closeModal = function() {
+      modalInput.disabled = false;
+      if (membersDiv.parentNode) membersDiv.remove();
+      closeModal = origClose;
+      origClose();
+    };
+
+    setTimeout(() => {
+      if (focusMembers) {
+        const addInput = membersDiv.querySelector('.add-member-row input');
+        if (addInput) addInput.focus(); else modalInput.focus();
+      } else {
+        modalInput.focus();
+        modalInput.selectionStart = modalInput.selectionEnd = modalInput.value.length;
+      }
+    }, 50);
   }
 
   function deleteList(id) {
@@ -1865,91 +2052,21 @@
     });
   }
 
-  /* ---- Member management ---- */
-  function manageMembers(id) {
-    const list = state.lists.find(l => l.id === id);
-    if (!list || !isOwner(list)) return;
-    toggleMenu(false);
-
-    const members = list.members || [];
-    const body = members.map((m, i) => {
-      const you = m.uid === currentUser.uid;
-      return `<div class="member-row" style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.875rem;">
-        <span>${esc(m.displayName || m.email)}${you ? ' (you)' : ''} <span style="color:var(--text-faint);font-size:0.75rem">${m.role}</span></span>
-        ${!you ? `<div style="display:flex;gap:4px;">
-          <button class="list-action" data-action="toggle-role" data-list="${id}" data-uid="${m.uid}" title="${m.role === 'owner' ? 'Make member' : 'Make owner'}">${m.role === 'owner' ? '&#x1f464;' : '&#x1f451;'}</button>
-          <button class="list-action danger" data-action="remove-member" data-list="${id}" data-uid="${m.uid}" title="Remove">&#x2715;</button>
-        </div>` : ''}
-      </div>`;
-    }).join('');
-
-    modalTitle.textContent = `Members of "${list.name}"`;
-    modalInput.style.display = '';
-    modalInput.value = '';
-    modalInput.placeholder = 'Add by email...';
-    modalConfirm.textContent = 'Add';
-    modalIsConfirm = false;
-    modalCallback = email => {
-      if (!email || members.some(m => m.email === email)) return;
-      list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
-      rebuildMemberArrays(list);
-      save();
-      /* Create invite doc so their sign-in resolves it */
-      db.collection('invites').add({ email, listId: list.id, invitedBy: currentUser.uid }).catch(() => {});
-      renderListMenu();
-    };
-
-    const extraContent = document.createElement('div');
-    extraContent.innerHTML = body;
-    extraContent.style.cssText = 'margin-bottom:12px;max-height:200px;overflow-y:auto;';
-
-    modalOverlay.classList.add('open');
-    const modal = modalOverlay.querySelector('.modal');
-    modal.insertBefore(extraContent, modalInput);
-
-    const origClose = closeModal;
-    closeModal = function() {
-      if (extraContent.parentNode) extraContent.remove();
-      closeModal = origClose;
-      origClose();
-    };
-
-    setTimeout(() => modalInput.focus(), 50);
-  }
-
-  function toggleMemberRole(listId, memberUid) {
-    const list = state.lists.find(l => l.id === listId);
-    if (!list) return;
-    const m = list.members.find(m => m.uid === memberUid);
-    if (!m) return;
-    m.role = m.role === 'owner' ? 'member' : 'owner';
-    save();
-    closeModal();
-  }
-
-  function removeMember(listId, memberUid) {
-    const list = state.lists.find(l => l.id === listId);
-    if (!list) return;
-    list.members = list.members.filter(m => m.uid !== memberUid);
-    list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
-    save();
-    closeModal();
-    renderListMenu();
-  }
-
   /* ---- Event delegation ---- */
   document.addEventListener('click', e => {
     const target = e.target.closest('[data-action]');
     if (!target) return;
 
     switch (target.dataset.action) {
-      case 'switch-list': switchList(target.dataset.id); break;
-      case 'rename-list': renameList(target.dataset.id); break;
+      case 'switch-list': {
+        const clickedId = target.dataset.id;
+        if (clickedId === state.activeListId && isOwner(active())) { editList(clickedId); }
+        else { switchList(clickedId); }
+        break;
+      }
+      case 'edit-list':   editList(target.dataset.id); break;
       case 'delete-list': deleteList(target.dataset.id); break;
       case 'new-list':    createList(); break;
-      case 'manage-members': manageMembers(target.dataset.id); break;
-      case 'toggle-role': toggleMemberRole(target.dataset.list, target.dataset.uid); break;
-      case 'remove-member': removeMember(target.dataset.list, target.dataset.uid); break;
       case 'remove':      removeItem(target.dataset.id); break;
       case 'refresh':     refreshItem(target.dataset.id, target); break;
       case 'open':        if (!target.isContentEditable) window.open(target.dataset.url, '_blank', 'noopener'); break;
@@ -2136,10 +2253,22 @@
     toggleMenu();
   });
 
+  $('#btnCollab').addEventListener('click', () => {
+    $('#shareSelector').classList.remove('open');
+    const list = active();
+    if (list) editList(list.id, true);
+  });
+
   $('#shareToggle').addEventListener('click', e => {
     e.stopPropagation();
     toggleMenu(false);
-    $('#shareSelector').classList.toggle('open');
+    const sel = $('#shareSelector');
+    sel.classList.toggle('open');
+    const list = active();
+    const label = $('#collabLabel');
+    if (label && list) {
+      label.textContent = isCollaborative(list) ? 'Members' : 'Make collaborative';
+    }
   });
 
   document.addEventListener('click', e => {

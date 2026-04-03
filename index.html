@@ -6,6 +6,9 @@
   <title>Listless</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' font-size='80' text-anchor='middle' dominant-baseline='central'>🔗</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <style>
     :root, [data-theme="dark"] {
       --bg: #111118;
@@ -129,6 +132,30 @@
     }
 
     .theme-btn:hover { border-color: var(--border-hover); }
+
+    .auth-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface-alt);
+      cursor: pointer;
+      font: 500 0.8125rem/1 inherit;
+      color: var(--text);
+      transition: border-color 0.15s;
+    }
+
+    .auth-btn:hover { border-color: var(--border-hover); }
+
+    .auth-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+    }
+
+    .auth-btn.signed-out { font-size: 0.8125rem; }
 
     /* ---- List selector ---- */
     .list-selector { position: relative; }
@@ -345,8 +372,9 @@
     .card-thumb {
       width: 110px;
       flex-shrink: 0;
-      background-size: cover;
+      background-size: contain;
       background-position: center;
+      background-repeat: no-repeat;
       background-color: var(--surface-alt);
     }
 
@@ -407,12 +435,11 @@
     .btn-edit-title:hover { color: var(--accent); }
 
     .item .card-title.editing {
-      border-color: var(--accent);
+      outline: 1px solid var(--accent);
       background: var(--input-bg);
       cursor: text;
       white-space: normal;
       overflow: visible;
-      padding: 1px 3px;
     }
 
     .card-desc {
@@ -459,16 +486,9 @@
     }
 
     .card-meta:has(.editing) {
-      height: 24px;
       overflow: visible;
     }
 
-    .card-meta:has(.note-field:not(.empty)) {
-      height: auto;
-      min-height: 20px;
-      overflow: visible;
-      align-items: flex-start;
-    }
 
     .meta-sep {
       color: var(--text-ghost);
@@ -491,19 +511,20 @@
     .price-field {
       font-weight: 600;
       color: var(--price);
-      width: 5ch;
+      width: 9ch;
       flex-shrink: 0;
     }
 
     .price-field:hover { color: var(--price-hover); }
     .price-field.empty { font-weight: 400; color: var(--text-invis); }
     .price-field.empty:hover { color: var(--text-ghost); }
-    .price-field.editing { border-color: var(--price); background: var(--input-bg); cursor: text; padding: 1px 3px; }
+    .price-field.editing { outline: 1px solid var(--price); background: var(--input-bg); cursor: text; }
 
     .note-field {
       color: var(--text-muted);
-      white-space: pre-wrap;
-      word-break: break-word;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       flex: 1;
       min-width: 0;
     }
@@ -512,12 +533,9 @@
     .note-field.empty { color: var(--text-invis); }
     .note-field.empty:hover { color: var(--text-ghost); }
     .note-field.editing {
-      border-color: var(--accent);
+      outline: 1px solid var(--accent);
       background: var(--input-bg);
       cursor: text;
-      white-space: pre-wrap;
-      overflow: visible;
-      padding: 1px 3px;
     }
 
     /* ---- Items ---- */
@@ -642,8 +660,8 @@
     .sortable-ghost { opacity: 0.35; }
     .sortable-drag { box-shadow: var(--shadow-drag); border-radius: 12px; }
 
-    /* Empty */
-    .empty {
+    /* Empty list state */
+    #emptyState {
       text-align: center;
       padding: 52px 24px;
       color: var(--text-ghost);
@@ -792,6 +810,7 @@
   <header class="header">
     <div class="brand">List<span>less</span></div>
     <div class="header-controls">
+      <button class="auth-btn signed-out" id="authBtn" title="Sign in with Google">Sign in</button>
       <button class="theme-btn" id="themeBtn" title="Toggle light/dark"></button>
       <div class="list-selector" id="listSelector">
         <button class="list-toggle" id="listToggle">
@@ -844,6 +863,21 @@
 <script>
 (() => {
   /* ---- State ---- */
+  /* ---- Firebase ---- */
+  firebase.initializeApp({
+    apiKey: "AIzaSyDBkrbakBiiFKOIXidYErhSEp-tDTAOJxc",
+    authDomain: "listless-70dd1.firebaseapp.com",
+    projectId: "listless-70dd1",
+    storageBucket: "listless-70dd1.firebasestorage.app",
+    messagingSenderId: "387333075083",
+    appId: "1:387333075083:web:728c8e297198709237a48e"
+  });
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const googleProvider = new firebase.auth.GoogleAuthProvider();
+  let currentUser = null;
+  let firestoreReady = false;
+
   const KEY = 'listless';
   let state = { lists: [], activeListId: null };
   let pendingUrl = null;   // URL currently being fetched for preview
@@ -860,6 +894,7 @@
   const previewSlot = $('#previewSlot');
   const fetchError  = $('#fetchError');
   const imgUpload   = $('#imgUpload');
+  const authBtn     = $('#authBtn');
 
   /* ---- Helpers ---- */
   const uid = () => crypto.randomUUID?.() ??
@@ -936,20 +971,93 @@
       const raw = localStorage.getItem(KEY);
       if (raw) state = JSON.parse(raw);
     } catch { /* empty */ }
+    ensureDefaults();
+  }
 
+  function ensureDefaults() {
     if (!state.lists?.length) {
       const id = uid();
       state = {
         lists: [{ id, name: 'My Links', items: [], createdAt: new Date().toISOString() }],
         activeListId: id
       };
-      save();
     }
     if (!active()) state.activeListId = state.lists[0].id;
   }
 
-  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    if (currentUser && firestoreReady) saveToFirestore();
+  }
+
+  let _fsTimer = null;
+  function saveToFirestore() {
+    clearTimeout(_fsTimer);
+    _fsTimer = setTimeout(() => {
+      db.collection('users').doc(currentUser.uid).set({
+        email: currentUser.email,
+        displayName: currentUser.displayName || '',
+        state: JSON.parse(JSON.stringify(state)),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(e => console.warn('Firestore save failed:', e));
+    }, 500);
+  }
+
+  async function loadFromFirestore() {
+    try {
+      const doc = await db.collection('users').doc(currentUser.uid).get();
+      if (doc.exists && doc.data().state) {
+        state = doc.data().state;
+        ensureDefaults();
+        localStorage.setItem(KEY, JSON.stringify(state));
+        renderListMenu();
+        renderItems();
+      } else {
+        /* First sign-in: push local data to Firestore */
+        saveToFirestore();
+      }
+    } catch (e) {
+      console.warn('Firestore load failed:', e);
+    }
+  }
+
   function active() { return state.lists.find(l => l.id === state.activeListId); }
+
+  /* ---- Auth ---- */
+  function updateAuthUI(user) {
+    if (user) {
+      authBtn.classList.remove('signed-out');
+      authBtn.innerHTML = user.photoURL
+        ? `<img class="auth-avatar" src="${esc(user.photoURL)}" alt="">${esc(user.displayName || 'Account')}`
+        : esc(user.displayName || user.email);
+      authBtn.title = 'Click to sign out';
+    } else {
+      authBtn.classList.add('signed-out');
+      authBtn.innerHTML = 'Sign in';
+      authBtn.title = 'Sign in with Google';
+    }
+  }
+
+  authBtn.addEventListener('click', () => {
+    if (currentUser) {
+      if (confirm('Sign out?')) auth.signOut();
+    } else {
+      auth.signInWithPopup(googleProvider).catch(e => {
+        if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
+      });
+    }
+  });
+
+  auth.onAuthStateChanged(async user => {
+    currentUser = user;
+    updateAuthUI(user);
+    if (user) {
+      firestoreReady = true;
+      await loadFromFirestore();
+    } else {
+      firestoreReady = false;
+    }
+  });
 
   /* ---- Metadata fetching ---- */
   function isBadTitle(title, url) {
@@ -1412,7 +1520,7 @@
       case 'new-list':    createList(); break;
       case 'remove':      removeItem(target.dataset.id); break;
       case 'refresh':     refreshItem(target.dataset.id, target); break;
-      case 'open':        window.open(target.dataset.url, '_blank', 'noopener'); break;
+      case 'open':        if (!target.isContentEditable) window.open(target.dataset.url, '_blank', 'noopener'); break;
       case 'edit-title': {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1501,16 +1609,13 @@
     if (field) saveField(field);
   });
 
-  /* Enter to save; Shift/Ctrl+Enter for newline in notes */
+  /* Enter to save, Escape to cancel */
   document.addEventListener('keydown', e => {
     if (!e.target.matches('.inline-field.editing, .card-title.editing')) return;
 
     if (e.key === 'Enter') {
-      const isNote = e.target.dataset.field === 'note';
-      if (!isNote || (!e.shiftKey && !e.ctrlKey)) {
-        e.preventDefault();
-        e.target.blur();
-      }
+      e.preventDefault();
+      e.target.blur();
     }
     if (e.key === 'Escape') {
       e.preventDefault();

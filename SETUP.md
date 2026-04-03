@@ -101,6 +101,28 @@ Click **Publish**.
    - `127.0.0.1/*`
 6. Click **Save**
 
+### Enable App Check (reCAPTCHA v3)
+
+App Check verifies that requests to Firebase come from your real app, not scripts or bots.
+
+1. Go to [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin)
+2. Create a new site: type **reCAPTCHA v3**, add your domains (`your-username.github.io`, `localhost`, any custom domains)
+3. Copy the **Site Key** and **Secret Key**
+4. In Firebase Console > **App Check** > click **Register** on your web app
+5. Select **reCAPTCHA**, paste the **Secret Key**, leave token TTL at 1 day, click **Save**
+6. Go to the **APIs** tab in App Check > find **Cloud Firestore** > click **Enforce**
+7. In `index.html`, replace the reCAPTCHA site key in the `appCheck.activate()` line with your Site Key
+
+### Set up monitoring alerts
+
+1. Go to [Google Cloud Monitoring](https://console.cloud.google.com/monitoring)
+2. **Alerting** > **Create Policy**
+3. Select metric: **Firestore Instance** > **Document** > **Document reads**
+4. Rolling window: 5 min, function: sum
+5. Threshold: 500 (or adjust for your expected usage)
+6. Add your email as notification channel
+7. Name the policy and create
+
 ## 2. Email notifications (Brevo + Firebase Extension)
 
 ### Upgrade to Blaze plan

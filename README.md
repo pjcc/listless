@@ -33,9 +33,12 @@ Also available via GitHub Pages.
 
 ## Setup
 
+See [SETUP.md](SETUP.md) for a full step-by-step walkthrough including all third-party accounts.
+
 Requires a Firebase project (Blaze plan) with:
 - **Authentication** - Google sign-in enabled
 - **Firestore** - for user data, collaborative lists, and shared links
+- **App Check** - reCAPTCHA v3 attestation to block automated abuse
 - **Trigger Email from Firestore** extension - sends invite emails via Brevo SMTP
 
 Firebase config is embedded in `index.html`. Firestore collections:
@@ -60,5 +63,29 @@ Firebase config is embedded in `index.html`. Firestore collections:
 
 ### Budget protection
 
-- A Google Cloud budget alert is configured at $1/month with email notifications at 50%, 90%, and 100%
-- To fully stop all paid Firebase services: Firebase Console > Project Settings > Blaze plan > downgrade to Spark (free). This disables extensions and any paid-tier usage immediately
+- Google Cloud budget alert at $1/month with email notifications at 50%, 90%, and 100%
+- Firestore monitoring alert emails if document reads exceed 500 in a 5-minute window
+- To fully stop all paid Firebase services: Firebase Console > Blaze plan > downgrade to Spark (free). This disables extensions and any paid-tier usage immediately
+
+## Security
+
+### Authentication and access control
+- **Mandatory Google sign-in** - no anonymous access to app data
+- **Firestore security rules** - per-collection rules restricting reads/writes to authenticated members only; shared docs write-locked to their creator via `ownerUid`
+- **Firebase App Check with reCAPTCHA v3** - silently verifies requests come from a real browser running the actual app, blocking scripts and bots from abusing the API
+
+### API and network protection
+- **Firebase API key domain restriction** - key restricted to allowed domains in Google Cloud Console; other origins are rejected
+- **Content Security Policy (CSP)** - browser-enforced policy restricting which domains the app can connect to, load scripts from, or frame
+- **Cloudflare Worker origin check** - metadata proxy only responds to requests from allowed domains
+- **Cloudflare Worker SSRF protection** - blocks requests to private IPs, localhost, internal hosts, and non-http(s) protocols
+
+### Input validation
+- **Email format validation** - rejects invalid emails when adding members
+- **Data attribute escaping** - prevents HTML injection from special characters in user input
+
+### Repo hygiene
+- **No secrets in repo** - SMTP keys, service accounts, and reCAPTCHA secret keys are stored in Firebase/Brevo/Google Cloud, not in code
+- **`.gitignore`** - `.claude/` directory and `LINKS.md` (admin URLs) excluded from repo
+- **`firestore.rules`** - security rules committed for visibility and verification
+- **`/* UPDATE: */` comments** - all lines needing customisation are flagged for new users

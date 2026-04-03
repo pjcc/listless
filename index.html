@@ -1124,7 +1124,7 @@
     if (!state.lists?.length) {
       const id = uid();
       state = {
-        lists: [{ id, name: 'My Links', items: [], members: [], memberUids: [], createdAt: new Date().toISOString() }],
+        lists: [{ id, name: 'My Links', items: [], members: [], memberUids: [], memberEmails: [], createdAt: new Date().toISOString() }],
         activeListId: id
       };
     }
@@ -1167,6 +1167,11 @@
     return list.members && list.members.length > 1;
   }
 
+  function rebuildMemberArrays(list) {
+    list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
+    list.memberEmails = list.members.map(m => m.email).filter(Boolean);
+  }
+
   async function migrateOldData() {
     /* Check for old-format data in users/{uid} and migrate to lists collection */
     try {
@@ -1176,6 +1181,7 @@
       for (const list of oldState.lists) {
         list.members = [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }];
         list.memberUids = [currentUser.uid];
+        list.memberEmails = [currentUser.email];
         await db.collection('lists').doc(list.id).set({
           ...list,
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1207,10 +1213,16 @@
         state.activeListId = userDoc.data().activeListId;
       }
 
-      /* Query all lists where user is a member */
-      const snap = await db.collection('lists').where('memberUids', 'array-contains', currentUser.uid).get();
-      if (!snap.empty) {
-        state.lists = snap.docs.map(d => ({ ...d.data(), id: d.id, _remote: true }));
+      /* Query all lists where user is a member (by UID or email) */
+      const [byUid, byEmail] = await Promise.all([
+        db.collection('lists').where('memberUids', 'array-contains', currentUser.uid).get(),
+        db.collection('lists').where('memberEmails', 'array-contains', currentUser.email).get()
+      ]);
+      const allDocs = new Map();
+      byUid.docs.forEach(d => allDocs.set(d.id, d));
+      byEmail.docs.forEach(d => allDocs.set(d.id, d));
+      if (allDocs.size) {
+        state.lists = [...allDocs.values()].map(d => ({ ...d.data(), id: d.id, _remote: true }));
         if (!active()) state.activeListId = state.lists[0].id;
       } else {
         /* Brand new user: create default list */
@@ -1219,6 +1231,7 @@
           id, name: 'My Links', items: [],
           members: [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }],
           memberUids: [currentUser.uid],
+          memberEmails: [currentUser.email],
           createdAt: new Date().toISOString()
         };
         state.lists = [list];
@@ -1291,7 +1304,8 @@
           member.displayName = currentUser.displayName || '';
           delete member.pending;
           const uids = data.members.filter(m => m.uid).map(m => m.uid);
-          await db.collection('lists').doc(listId).update({ members: data.members, memberUids: uids });
+          const emails = data.members.map(m => m.email).filter(Boolean);
+          await db.collection('lists').doc(listId).update({ members: data.members, memberUids: uids, memberEmails: emails });
         }
         await inv.ref.delete();
       }
@@ -1806,6 +1820,7 @@
         id, name, items: [],
         members: currentUser ? [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }] : [],
         memberUids: currentUser ? [currentUser.uid] : [],
+        memberEmails: currentUser ? [currentUser.email] : [],
         createdAt: new Date().toISOString()
       };
       state.lists.push(list);
@@ -1877,7 +1892,7 @@
     modalCallback = email => {
       if (!email || members.some(m => m.email === email)) return;
       list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
-      list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
+      rebuildMemberArrays(list);
       save();
       /* Create invite doc so their sign-in resolves it */
       db.collection('invites').add({ email, listId: list.id, invitedBy: currentUser.uid }).catch(() => {});

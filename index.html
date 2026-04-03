@@ -459,7 +459,15 @@
     }
 
     .card-meta:has(.editing) {
+      height: 24px;
+      overflow: visible;
+    }
+
+    .card-meta:has(.note-field:not(.empty)) {
       height: auto;
+      min-height: 20px;
+      overflow: visible;
+      align-items: flex-start;
     }
 
     .meta-sep {
@@ -494,9 +502,8 @@
 
     .note-field {
       color: var(--text-muted);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      white-space: pre-wrap;
+      word-break: break-word;
       flex: 1;
       min-width: 0;
     }

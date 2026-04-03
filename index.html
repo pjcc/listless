@@ -2182,6 +2182,7 @@
         name: list.name,
         items: JSON.parse(JSON.stringify(list.items)),
         sharedBy: currentUser?.displayName || '',
+        ownerUid: currentUser?.uid,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       const url = `${location.origin}${location.pathname}?s=${shareId}`;

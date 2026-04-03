@@ -76,7 +76,8 @@ service cloud.firestore {
     }
     match /shared/{shareId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
     }
     match /mail/{mailId} {
       allow create: if request.auth != null;

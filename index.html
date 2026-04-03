@@ -2044,6 +2044,9 @@
           id,
           name: data.name || 'Imported',
           items: data.items,
+          members: currentUser ? [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }] : [],
+          memberUids: currentUser ? [currentUser.uid] : [],
+          memberEmails: currentUser ? [currentUser.email] : [],
           createdAt: new Date().toISOString()
         };
         state.lists.push(list);

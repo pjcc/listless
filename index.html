@@ -1108,7 +1108,10 @@
 
   $('#themeBtn').addEventListener('click', toggleTheme);
 
-  /* ---- Storage ---- */
+  /* ---- Storage (Option B: lists as top-level docs) ---- */
+  let _unsub = null; /* onSnapshot unsubscribe */
+  let _saveTimers = {};
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -1121,50 +1124,156 @@
     if (!state.lists?.length) {
       const id = uid();
       state = {
-        lists: [{ id, name: 'My Links', items: [], createdAt: new Date().toISOString() }],
+        lists: [{ id, name: 'My Links', items: [], members: [], memberUids: [], createdAt: new Date().toISOString() }],
         activeListId: id
       };
     }
     if (!active()) state.activeListId = state.lists[0].id;
   }
 
-  function save() {
+  function saveLocal() {
     localStorage.setItem(KEY, JSON.stringify(state));
-    if (currentUser && firestoreReady) saveToFirestore();
   }
 
-  let _fsTimer = null;
-  function saveToFirestore() {
-    clearTimeout(_fsTimer);
-    _fsTimer = setTimeout(() => {
-      db.collection('users').doc(currentUser.uid).set({
-        email: currentUser.email,
-        displayName: currentUser.displayName || '',
-        state: JSON.parse(JSON.stringify(state)),
+  function save() {
+    saveLocal();
+    if (currentUser && firestoreReady) saveListToFirestore(active());
+  }
+
+  function saveListToFirestore(list) {
+    if (!list || !currentUser) return;
+    clearTimeout(_saveTimers[list.id]);
+    _saveTimers[list.id] = setTimeout(() => {
+      const data = JSON.parse(JSON.stringify(list));
+      delete data._remote;
+      db.collection('lists').doc(list.id).set({
+        ...data,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }).catch(e => console.warn('Firestore save failed:', e));
     }, 500);
   }
 
-  async function loadFromFirestore() {
+  function myRole(list) {
+    if (!currentUser || !list.members) return null;
+    const m = list.members.find(m => m.uid === currentUser.uid);
+    return m?.role || null;
+  }
+
+  function isOwner(list) {
+    return myRole(list) === 'owner';
+  }
+
+  function isCollaborative(list) {
+    return list.members && list.members.length > 1;
+  }
+
+  async function migrateOldData() {
+    /* Check for old-format data in users/{uid} and migrate to lists collection */
     try {
       const doc = await db.collection('users').doc(currentUser.uid).get();
-      if (doc.exists && doc.data().state) {
-        state = doc.data().state;
-        ensureDefaults();
-        localStorage.setItem(KEY, JSON.stringify(state));
-        renderListMenu();
-        renderItems();
-      } else {
-        /* First sign-in: create default list and push to Firestore */
-        ensureDefaults();
-        saveToFirestore();
-        renderListMenu();
-        renderItems();
+      if (!doc.exists || !doc.data().state?.lists?.length) return false;
+      const oldState = doc.data().state;
+      for (const list of oldState.lists) {
+        list.members = [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }];
+        list.memberUids = [currentUser.uid];
+        await db.collection('lists').doc(list.id).set({
+          ...list,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
       }
+      /* Clear old data */
+      await db.collection('users').doc(currentUser.uid).set({
+        email: currentUser.email,
+        migrated: true,
+        activeListId: oldState.activeListId
+      });
+      return true;
+    } catch (e) {
+      console.warn('Migration failed:', e);
+      return false;
+    }
+  }
+
+  async function loadFromFirestore() {
+    try {
+      /* Check if migration needed */
+      const userDoc = await db.collection('users').doc(currentUser.uid).get();
+      if (userDoc.exists && userDoc.data().state && !userDoc.data().migrated) {
+        await migrateOldData();
+      }
+
+      /* Load activeListId preference */
+      if (userDoc.exists && userDoc.data().activeListId) {
+        state.activeListId = userDoc.data().activeListId;
+      }
+
+      /* Query all lists where user is a member */
+      const snap = await db.collection('lists').where('memberUids', 'array-contains', currentUser.uid).get();
+      if (!snap.empty) {
+        state.lists = snap.docs.map(d => ({ ...d.data(), id: d.id, _remote: true }));
+        if (!active()) state.activeListId = state.lists[0].id;
+      } else {
+        /* Brand new user: create default list */
+        const id = uid();
+        const list = {
+          id, name: 'My Links', items: [],
+          members: [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }],
+          memberUids: [currentUser.uid],
+          createdAt: new Date().toISOString()
+        };
+        state.lists = [list];
+        state.activeListId = id;
+        await db.collection('lists').doc(id).set({ ...list, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      }
+      saveLocal();
+      renderListMenu();
+      renderItems();
+
+      /* Start real-time listener */
+      startSnapshot();
     } catch (e) {
       console.warn('Firestore load failed:', e);
     }
+  }
+
+  function startSnapshot() {
+    if (_unsub) _unsub();
+    _unsub = db.collection('lists')
+      .where('memberUids', 'array-contains', currentUser.uid)
+      .onSnapshot(snap => {
+        let changed = false;
+        snap.docChanges().forEach(change => {
+          const data = { ...change.doc.data(), id: change.doc.id, _remote: true };
+          if (change.type === 'added' || change.type === 'modified') {
+            const idx = state.lists.findIndex(l => l.id === data.id);
+            if (idx >= 0) {
+              /* Don't overwrite if we just saved this ourselves */
+              if (_saveTimers[data.id]) return;
+              state.lists[idx] = data;
+            } else {
+              state.lists.push(data);
+            }
+            changed = true;
+          } else if (change.type === 'removed') {
+            state.lists = state.lists.filter(l => l.id !== data.id);
+            changed = true;
+          }
+        });
+        if (changed) {
+          if (!active() && state.lists.length) state.activeListId = state.lists[0].id;
+          saveLocal();
+          renderListMenu();
+          renderItems();
+        }
+      });
+  }
+
+  function saveActiveListId() {
+    if (!currentUser) return;
+    db.collection('users').doc(currentUser.uid).set(
+      { activeListId: state.activeListId },
+      { merge: true }
+    ).catch(() => {});
   }
 
   function active() { return state.lists.find(l => l.id === state.activeListId); }
@@ -1211,6 +1320,7 @@
       firestoreReady = true;
       await loadFromFirestore();
     } else {
+      if (_unsub) { _unsub(); _unsub = null; }
       localStorage.removeItem('listless_authed');
       firestoreReady = false;
       $('#landing').style.display = '';
@@ -1572,20 +1682,25 @@
     const menu = $('#listMenu');
     const single = state.lists.length === 1;
 
-    menu.innerHTML = state.lists.map(l => `
+    menu.innerHTML = state.lists.map(l => {
+      const collab = isCollaborative(l);
+      const owner = isOwner(l);
+      return `
       <div class="list-menu-item ${l.id === state.activeListId ? 'active' : ''}" data-action="switch-list" data-id="${l.id}">
-        <span>${esc(l.name)}</span>
+        <span>${collab ? '&#x1f465; ' : ''}${esc(l.name)}</span>
         <div class="list-item-actions">
+          ${owner ? `<button class="list-action" data-action="manage-members" data-id="${l.id}" title="Members">&#x1f465;</button>` : ''}
           <button class="list-action" data-action="rename-list" data-id="${l.id}" title="Rename">&#9998;</button>
           ${single ? '' : `<button class="list-action danger" data-action="delete-list" data-id="${l.id}" title="Delete">&times;</button>`}
         </div>
-      </div>
-    `).join('') + `
+      </div>`;
+    }).join('') + `
       <div class="list-menu-div"></div>
       <div class="list-menu-new" data-action="new-list">+ New List</div>
     `;
 
-    $('#activeLabel').textContent = active()?.name || '';
+    const act = active();
+    $('#activeLabel').textContent = (act ? (isCollaborative(act) ? '\u{1f465} ' : '') + act.name : '');
   }
 
   function toggleMenu(force) {
@@ -1594,7 +1709,8 @@
 
   function switchList(id) {
     state.activeListId = id;
-    save();
+    saveLocal();
+    saveActiveListId();
     renderListMenu();
     renderItems();
     toggleMenu(false);
@@ -1661,9 +1777,16 @@
     openModal('New list', '', 'List name', name => {
       if (state.lists.some(l => l.name === name)) return;
       const id = uid();
-      state.lists.push({ id, name, items: [], createdAt: new Date().toISOString() });
+      const list = {
+        id, name, items: [],
+        members: currentUser ? [{ uid: currentUser.uid, email: currentUser.email, displayName: currentUser.displayName || '', role: 'owner' }] : [],
+        memberUids: currentUser ? [currentUser.uid] : [],
+        createdAt: new Date().toISOString()
+      };
+      state.lists.push(list);
       state.activeListId = id;
       save();
+      saveActiveListId();
       renderListMenu();
       renderItems();
     });
@@ -1693,10 +1816,83 @@
     openConfirmModal(msg, () => {
       state.lists = state.lists.filter(l => l.id !== id);
       if (state.activeListId === id) state.activeListId = state.lists[0].id;
-      save();
+      saveLocal();
+      if (currentUser && firestoreReady) {
+        db.collection('lists').doc(id).delete().catch(() => {});
+      }
       renderListMenu();
       renderItems();
     });
+  }
+
+  /* ---- Member management ---- */
+  function manageMembers(id) {
+    const list = state.lists.find(l => l.id === id);
+    if (!list || !isOwner(list)) return;
+    toggleMenu(false);
+
+    const members = list.members || [];
+    const body = members.map((m, i) => {
+      const you = m.uid === currentUser.uid;
+      return `<div class="member-row" style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.875rem;">
+        <span>${esc(m.displayName || m.email)}${you ? ' (you)' : ''} <span style="color:var(--text-faint);font-size:0.75rem">${m.role}</span></span>
+        ${!you ? `<div style="display:flex;gap:4px;">
+          <button class="list-action" data-action="toggle-role" data-list="${id}" data-uid="${m.uid}" title="${m.role === 'owner' ? 'Make member' : 'Make owner'}">${m.role === 'owner' ? '&#x1f464;' : '&#x1f451;'}</button>
+          <button class="list-action danger" data-action="remove-member" data-list="${id}" data-uid="${m.uid}" title="Remove">&#x2715;</button>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    modalTitle.textContent = `Members of "${list.name}"`;
+    modalInput.style.display = '';
+    modalInput.value = '';
+    modalInput.placeholder = 'Add by email...';
+    modalConfirm.textContent = 'Add';
+    modalIsConfirm = false;
+    modalCallback = email => {
+      if (!email || members.some(m => m.email === email)) return;
+      list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
+      list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
+      save();
+      renderListMenu();
+    };
+
+    const extraContent = document.createElement('div');
+    extraContent.innerHTML = body;
+    extraContent.style.cssText = 'margin-bottom:12px;max-height:200px;overflow-y:auto;';
+
+    modalOverlay.classList.add('open');
+    const modal = modalOverlay.querySelector('.modal');
+    modal.insertBefore(extraContent, modalInput);
+
+    const origClose = closeModal;
+    closeModal = function() {
+      if (extraContent.parentNode) extraContent.remove();
+      closeModal = origClose;
+      origClose();
+    };
+
+    setTimeout(() => modalInput.focus(), 50);
+  }
+
+  function toggleMemberRole(listId, memberUid) {
+    const list = state.lists.find(l => l.id === listId);
+    if (!list) return;
+    const m = list.members.find(m => m.uid === memberUid);
+    if (!m) return;
+    m.role = m.role === 'owner' ? 'member' : 'owner';
+    save();
+    closeModal();
+  }
+
+  function removeMember(listId, memberUid) {
+    const list = state.lists.find(l => l.id === listId);
+    if (!list) return;
+    list.members = list.members.filter(m => m.uid !== memberUid);
+    list.memberUids = list.members.filter(m => m.uid).map(m => m.uid);
+    save();
+    closeModal();
+    renderListMenu();
   }
 
   /* ---- Event delegation ---- */
@@ -1709,6 +1905,9 @@
       case 'rename-list': renameList(target.dataset.id); break;
       case 'delete-list': deleteList(target.dataset.id); break;
       case 'new-list':    createList(); break;
+      case 'manage-members': manageMembers(target.dataset.id); break;
+      case 'toggle-role': toggleMemberRole(target.dataset.list, target.dataset.uid); break;
+      case 'remove-member': removeMember(target.dataset.list, target.dataset.uid); break;
       case 'remove':      removeItem(target.dataset.id); break;
       case 'refresh':     refreshItem(target.dataset.id, target); break;
       case 'open':        if (!target.isContentEditable) window.open(target.dataset.url, '_blank', 'noopener'); break;

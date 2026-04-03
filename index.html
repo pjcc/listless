@@ -415,7 +415,6 @@
       border-radius: 4px;
       outline: none;
       min-width: 0;
-      flex: 1;
     }
 
     .btn-edit-title {
@@ -428,10 +427,8 @@
       padding: 0 2px;
       line-height: 1;
       transition: color 0.1s;
-      opacity: 0;
     }
 
-    .item:hover .btn-edit-title { opacity: 1; }
     .btn-edit-title:hover { color: var(--accent); }
 
     .item .card-title.editing {
@@ -476,12 +473,12 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.75rem;
+      font-size: 0.875rem;
       color: var(--text-faint);
       margin-top: 4px;
       line-height: 1.3;
       padding: 0;
-      height: 20px;
+      height: 22px;
       overflow: hidden;
     }
 
@@ -547,6 +544,66 @@
       margin-bottom: 10px;
     }
 
+    .share-selector { position: relative; }
+
+    .toolbar-btn {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1.5px solid var(--border);
+      border-radius: 9px;
+      background: var(--surface-alt);
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--text-faint);
+      transition: border-color 0.15s;
+      line-height: 1;
+    }
+
+    .toolbar-btn:hover { border-color: var(--border-hover); }
+
+    .share-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 170px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      z-index: 50;
+      padding: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-4px) scale(0.97);
+      transition: all 0.15s cubic-bezier(.4,0,.2,1);
+    }
+
+    .share-selector.open .share-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+
+    .share-menu-item {
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .share-menu-item:hover { background: var(--surface-hover); color: var(--text); }
+
+    .share-icon {
+      display: inline-block;
+      width: 1.2em;
+      text-align: center;
+      margin-right: 0.4em;
+    }
+
     .items-container {
       display: flex;
       flex-direction: column;
@@ -561,6 +618,23 @@
       box-shadow: var(--shadow-sm);
       transition: box-shadow 0.15s, opacity 0.25s, transform 0.25s;
     }
+
+    .drag-grip {
+      width: 12px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      color: var(--text-invis);
+      font-size: 0.6rem;
+      user-select: none;
+      transition: color 0.15s;
+    }
+
+    .drag-grip:active { cursor: grabbing; }
+    .drag-grip { color: var(--text-ghost); }
+    .item:hover .drag-grip { color: var(--text-faint); }
 
     .item:hover { box-shadow: var(--shadow-md); }
 
@@ -657,8 +731,8 @@
     .btn-remove:hover { color: var(--err); background: var(--err-bg); }
 
     /* SortableJS */
-    .sortable-ghost { opacity: 0.35; }
-    .sortable-drag { box-shadow: var(--shadow-drag); border-radius: 12px; }
+    .sortable-ghost { opacity: 1 !important; border: 2px dashed var(--border-hover); }
+    .sortable-drag { box-shadow: var(--shadow-drag); border-radius: 12px; border: 2px solid var(--accent) !important; opacity: 1 !important; overflow: visible; }
 
     /* Empty list state */
     #emptyState {
@@ -795,6 +869,54 @@
 
     .modal-btn-confirm:hover { background: var(--accent-hover); }
 
+    /* ---- Shared view ---- */
+    .shared-banner {
+      text-align: center;
+      padding: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .shared-view .inline-field { pointer-events: none; }
+    .shared-view .btn-edit-title,
+    .shared-view .btn-upload-img,
+    .shared-view .item-actions,
+    .shared-view .share-selector,
+    .shared-view .input-row,
+    .shared-view .header-controls { display: none; }
+
+    /* ---- Landing ---- */
+    .landing {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .landing-inner {
+      text-align: center;
+    }
+
+    .landing-brand {
+      font-size: 2.5rem;
+      margin-bottom: 8px;
+    }
+
+    .landing-sub {
+      color: var(--text-muted);
+      font-size: 1rem;
+      margin-bottom: 32px;
+    }
+
+    .landing-signin {
+      padding: 10px 24px;
+      font-size: 0.9375rem;
+    }
+
     /* ---- Responsive ---- */
     @media (max-width: 520px) {
       .app { padding: 20px 14px 48px; }
@@ -806,12 +928,27 @@
   </style>
 </head>
 <body>
-<div class="app">
+<div class="landing" id="landing">
+  <div class="landing-inner">
+    <div class="brand landing-brand">List<span>less</span></div>
+    <p class="landing-sub">Collect and organise links</p>
+    <button class="auth-btn landing-signin" id="landingSignIn">Sign in with Google</button>
+  </div>
+</div>
+<div class="app" id="appMain" style="display:none">
   <header class="header">
     <div class="brand">List<span>less</span></div>
     <div class="header-controls">
       <button class="auth-btn signed-out" id="authBtn" title="Sign in with Google">Sign in</button>
       <button class="theme-btn" id="themeBtn" title="Toggle light/dark"></button>
+      <div class="share-selector" id="shareSelector">
+        <button class="toolbar-btn" id="shareToggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12l-7-7v4C7 9 4 14 3 19c2.5-3.5 6-5 11-5v4l7-7z"/></svg></button>
+        <div class="share-menu" id="shareMenu">
+          <div class="share-menu-item" id="btnShare"><span class="share-icon">&#x1f517;</span> Copy share link</div>
+          <div class="share-menu-item" id="btnExport"><span class="share-icon">&#x2913;</span> Export as JSON</div>
+          <div class="share-menu-item" id="btnImport"><span class="share-icon">&#x2912;</span> Import from JSON</div>
+        </div>
+      </div>
       <div class="list-selector" id="listSelector">
         <button class="list-toggle" id="listToggle">
           <span id="activeLabel">My Links</span>
@@ -859,6 +996,7 @@
   </div>
 </div>
 <input type="file" id="imgUpload" accept="image/*" hidden>
+<input type="file" id="jsonImport" accept=".json" hidden>
 
 <script>
 (() => {
@@ -1013,8 +1151,11 @@
         renderListMenu();
         renderItems();
       } else {
-        /* First sign-in: push local data to Firestore */
+        /* First sign-in: create default list and push to Firestore */
+        ensureDefaults();
         saveToFirestore();
+        renderListMenu();
+        renderItems();
       }
     } catch (e) {
       console.warn('Firestore load failed:', e);
@@ -1040,7 +1181,7 @@
 
   authBtn.addEventListener('click', () => {
     if (currentUser) {
-      if (confirm('Sign out?')) auth.signOut();
+      openConfirmModal('Sign out?', () => auth.signOut());
     } else {
       auth.signInWithPopup(googleProvider).catch(e => {
         if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
@@ -1048,19 +1189,30 @@
     }
   });
 
+  $('#landingSignIn').addEventListener('click', () => {
+    auth.signInWithPopup(googleProvider).catch(e => {
+      if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
+    });
+  });
+
   auth.onAuthStateChanged(async user => {
     currentUser = user;
     updateAuthUI(user);
     if (user) {
+      localStorage.setItem('listless_authed', '1');
+      $('#landing').style.display = 'none';
+      $('#appMain').style.display = '';
+      authBtn.style.visibility = '';
       firestoreReady = true;
       await loadFromFirestore();
     } else {
+      localStorage.removeItem('listless_authed');
       firestoreReady = false;
+      $('#landing').style.display = '';
+      $('#appMain').style.display = 'none';
       localStorage.removeItem(KEY);
       state = { lists: [], activeListId: null };
       ensureDefaults();
-      renderListMenu();
-      renderItems();
     }
   });
 
@@ -1314,10 +1466,7 @@
   }
 
   /* ---- Refresh metadata ---- */
-  async function refreshItem(id, btn) {
-    const item = active()?.items.find(i => i.id === id);
-    if (!item) return;
-    if (item.customImage && !confirm('Custom image will be replaced by fetched metadata. Continue?')) return;
+  async function doRefresh(item, btn) {
     btn.classList.add('spinning');
     try {
       const ctrl = new AbortController();
@@ -1333,6 +1482,16 @@
     } catch (e) {
       if (e.name !== 'AbortError') btn.classList.remove('spinning');
     }
+  }
+
+  function refreshItem(id, btn) {
+    const item = active()?.items.find(i => i.id === id);
+    if (!item) return;
+    if (item.customImage) {
+      openConfirmModal('Custom image will be replaced by fetched metadata. Continue?', () => doRefresh(item, btn));
+      return;
+    }
+    doRefresh(item, btn);
   }
 
   /* ---- Render items ---- */
@@ -1365,6 +1524,7 @@
 
       return `
       <div class="item ${item._loading ? 'loading' : ''}" data-id="${item.id}">
+        <div class="drag-grip">&#x2807;</div>
         ${thumbHtml(item, 'card-thumb', true)}
         <div class="card-body">
           <div class="card-title-row"><div class="card-title" data-action="open" data-url="${esc(item.url)}" data-field="title" data-id="${item.id}">${esc(item.title || domain(item.url))}</div><button class="btn-edit-title" data-action="edit-title" data-id="${item.id}" title="Edit title">&#9998;</button></div>
@@ -1443,10 +1603,15 @@
   const modalCancel  = $('#modalCancel');
   let modalCallback  = null;
 
+  let modalIsConfirm = false;
+
   function openModal(title, value, placeholder, cb) {
+    modalIsConfirm = false;
     modalTitle.textContent = title;
     modalInput.value = value;
     modalInput.placeholder = placeholder || '';
+    modalInput.style.display = '';
+    modalConfirm.textContent = 'Save';
     modalCallback = cb;
     modalOverlay.classList.add('open');
     setTimeout(() => {
@@ -1455,12 +1620,27 @@
     }, 50);
   }
 
+  function openConfirmModal(title, cb) {
+    modalIsConfirm = true;
+    modalTitle.textContent = title;
+    modalInput.style.display = 'none';
+    modalConfirm.textContent = 'Confirm';
+    modalCallback = cb;
+    modalOverlay.classList.add('open');
+    setTimeout(() => modalConfirm.focus(), 50);
+  }
+
   function closeModal() {
     modalOverlay.classList.remove('open');
     modalCallback = null;
   }
 
   function confirmModal() {
+    if (modalIsConfirm) {
+      if (modalCallback) modalCallback();
+      closeModal();
+      return;
+    }
     const val = modalInput.value.trim();
     if (val && modalCallback) modalCallback(val);
     closeModal();
@@ -1505,12 +1685,13 @@
     const msg = n
       ? `Delete "${list.name}" and its ${n} link${n === 1 ? '' : 's'}?`
       : `Delete "${list.name}"?`;
-    if (!confirm(msg)) return;
-    state.lists = state.lists.filter(l => l.id !== id);
-    if (state.activeListId === id) state.activeListId = state.lists[0].id;
-    save();
-    renderListMenu();
-    renderItems();
+    openConfirmModal(msg, () => {
+      state.lists = state.lists.filter(l => l.id !== id);
+      if (state.activeListId === id) state.activeListId = state.lists[0].id;
+      save();
+      renderListMenu();
+      renderItems();
+    });
   }
 
   /* ---- Event delegation ---- */
@@ -1560,6 +1741,78 @@
     reader.readAsDataURL(file);
   });
 
+  /* ---- Share ---- */
+  $('#btnShare').addEventListener('click', async () => {
+    $('#shareSelector').classList.remove('open');
+    const list = active();
+    if (!list || !list.items.length) return;
+    const shareId = list.shareId || uid();
+    list.shareId = shareId;
+    save();
+    try {
+      await db.collection('shared').doc(shareId).set({
+        name: list.name,
+        items: JSON.parse(JSON.stringify(list.items)),
+        sharedBy: currentUser?.displayName || '',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      const url = `${location.origin}${location.pathname}?s=${shareId}`;
+      if (navigator.share) {
+        navigator.share({ title: list.name, url }).catch(() => {});
+      }
+      await navigator.clipboard.writeText(url).catch(() => {});
+      showUndo('Share link copied!', null);
+    } catch (e) {
+      console.warn('Share failed:', e);
+    }
+  });
+
+  /* ---- Export / Import ---- */
+  const jsonImport = $('#jsonImport');
+
+  $('#btnExport').addEventListener('click', () => {
+    $('#shareSelector').classList.remove('open');
+    const list = active();
+    if (!list) return;
+    const data = JSON.stringify({ name: list.name, items: list.items }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${list.name.replace(/[^a-z0-9]/gi, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $('#btnImport').addEventListener('click', () => { $('#shareSelector').classList.remove('open'); jsonImport.click(); });
+
+  jsonImport.addEventListener('change', () => {
+    const file = jsonImport.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data.items?.length) return;
+        const id = uid();
+        const list = {
+          id,
+          name: data.name || 'Imported',
+          items: data.items,
+          createdAt: new Date().toISOString()
+        };
+        state.lists.push(list);
+        state.activeListId = id;
+        save();
+        renderListMenu();
+        renderItems();
+      } catch (e) {
+        console.warn('Import failed:', e);
+      }
+    };
+    reader.readAsText(file);
+    jsonImport.value = '';
+  });
+
   /* Inline-editable fields: click to edit, blur to save */
   function startEditing(field) {
     if (field.isContentEditable) return;
@@ -1570,7 +1823,7 @@
     const item = active()?.items.find(i => i.id === id);
     if (!item) return;
 
-    field.textContent = item[type] || '';
+    field.textContent = item[type] || (type === 'price' ? '£' : '');
     field.contentEditable = 'plaintext-only';
     field.focus();
 
@@ -1630,19 +1883,56 @@
 
   $('#listToggle').addEventListener('click', e => {
     e.stopPropagation();
+    $('#shareSelector').classList.remove('open');
     toggleMenu();
+  });
+
+  $('#shareToggle').addEventListener('click', e => {
+    e.stopPropagation();
+    toggleMenu(false);
+    $('#shareSelector').classList.toggle('open');
   });
 
   document.addEventListener('click', e => {
     if (!$('#listSelector').contains(e.target)) toggleMenu(false);
+    if (!$('#shareSelector').contains(e.target)) $('#shareSelector').classList.remove('open');
   });
 
   /* ---- Init ---- */
   initTheme();
-  load();
-  renderListMenu();
-  renderItems();
-  urlInput.focus();
+
+  /* Shared view: ?s=shareId */
+  const shareParam = new URLSearchParams(location.search).get('s');
+  if (shareParam) {
+    $('#landing').style.display = 'none';
+    $('#appMain').style.display = '';
+    $('#appMain').classList.add('shared-view');
+    db.collection('shared').doc(shareParam).get().then(doc => {
+      if (!doc.exists) {
+        $('#itemsContainer').innerHTML = '<div style="text-align:center;color:var(--text-ghost);padding:32px">Shared list not found</div>';
+        return;
+      }
+      const data = doc.data();
+      const id = uid();
+      state = { lists: [{ id, name: data.name, items: data.items, createdAt: '' }], activeListId: id };
+      const banner = document.createElement('div');
+      banner.className = 'shared-banner';
+      banner.textContent = `Shared by ${data.sharedBy || 'someone'}`;
+      $('#itemsSection').prepend(banner);
+      renderListMenu();
+      renderItems();
+    }).catch(() => {
+      $('#itemsContainer').innerHTML = '<div style="text-align:center;color:var(--text-ghost);padding:32px">Could not load shared list</div>';
+    });
+  } else if (localStorage.getItem('listless_authed')) {
+    /* Hide landing immediately if previously signed in (avoids flash) */
+    $('#landing').style.display = 'none';
+    $('#appMain').style.display = '';
+    authBtn.style.visibility = 'hidden';
+    load();
+    renderListMenu();
+    renderItems();
+  }
 })();
 </script>
 </body>

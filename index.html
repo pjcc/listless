@@ -1933,10 +1933,10 @@
           return `<div class="member-row">
             <span class="member-name">${esc(name)}${m.pending ? ' <span class="member-pending">(pending)</span>' : ''}${you ? ' <span class="member-you">(you)</span>' : ''}</span>
             <div class="role-toggle">
-              <span class="role-option ${m.role === 'owner' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="owner" data-uid="${m.uid || ''}" data-email="${m.email || ''}">owner</span>
-              <span class="role-option ${m.role === 'member' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="member" data-uid="${m.uid || ''}" data-email="${m.email || ''}">member</span>
+              <span class="role-option ${m.role === 'owner' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="owner" data-uid="${esc(m.uid || '')}" data-email="${esc(m.email || '')}">owner</span>
+              <span class="role-option ${m.role === 'member' ? 'active' : ''} ${canEdit ? '' : 'readonly'}" data-role="member" data-uid="${esc(m.uid || '')}" data-email="${esc(m.email || '')}">member</span>
             </div>
-            ${canEdit ? `<button class="member-remove" data-uid="${m.uid || ''}" data-email="${m.email || ''}" title="Remove">&#x2715;</button>` : ''}
+            ${canEdit ? `<button class="member-remove" data-uid="${esc(m.uid || '')}" data-email="${esc(m.email || '')}" title="Remove">&#x2715;</button>` : ''}
           </div>`;
         }).join('')}
         ${owner ? `<div class="add-member-row">
@@ -1981,7 +1981,7 @@
       if (addBtn) {
         const input = membersDiv.querySelector('.add-member-row input');
         const email = input?.value.trim();
-        if (!email || list.members.some(m => m.email === email)) return;
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || list.members.some(m => m.email === email)) return;
         list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
         rebuildMemberArrays(list);
         save();
@@ -1990,7 +1990,7 @@
           to: email,
           message: {
             subject: `${currentUser.displayName || 'Someone'} shared a list with you on Listless`,
-            html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="${location.origin}${location.pathname}">Open Listless</a> and sign in with this email to access it.</p>`
+            html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="https://pjcc.github.io/listless/">Open Listless</a> and sign in with this email to access it.</p>`
           }
         }).catch(() => {});
         renderMembersSection();

@@ -86,12 +86,17 @@ service cloud.firestore {
     }
     // The Trigger Email extension sends anything written here, so an
     // unconstrained create is an open relay: any signed-in user could mail
-    // arbitrary addresses from this project's sender. Every document must now
+    // arbitrary addresses from this project's sender. Every document must
     // correspond to an invite the same user created, addressed to that
     // invite's recipient.
+    //
+    // `template` rather than `message`: the body comes from the templates
+    // collection, server-side. Allowing `message` here would let a client
+    // put arbitrary HTML back into an email sent from our own sender, so it
+    // is deliberately absent from the permitted keys.
     match /mail/{mailId} {
       allow create: if request.auth != null
-                    && request.resource.data.keys().hasOnly(['to', 'message', 'inviteId', 'createdBy'])
+                    && request.resource.data.keys().hasOnly(['to', 'template', 'inviteId', 'createdBy'])
                     && request.resource.data.createdBy == request.auth.uid
                     && exists(/databases/$(database)/documents/invites/$(request.resource.data.inviteId))
                     && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.invitedBy == request.auth.uid
@@ -189,14 +194,15 @@ App Check verifies that requests to Firebase come from your real app, not script
 
 The extension sends whatever lands in the `mail` collection, so that collection is the sending API. The security rules constrain **who can be emailed**: a document is only accepted if it matches an invite the same user created, addressed to that invite's recipient. Without that, any signed-in user could mail arbitrary addresses from your verified sender.
 
-They do **not** constrain the **body**, which the browser still composes. To close that as well, use the extension's template support instead of raw HTML:
+They also constrain the **body**, but only because the body no longer comes from the browser. The app uses the extension's template support, so this setup is required for invites to send at all:
 
 1. Set **Templates collection** to `templates` when configuring the extension
-2. Add a document to `templates` with the invite email as a Handlebars template, e.g. id `invite`, field `subject`: `{{inviterName}} shared a list with you`, field `html`: the body, referencing `{{listName}}`
-3. Have the client write `template: { name: 'invite', data: { inviterName, listName } }` instead of `message`
-4. Tighten the `mail` rule's `hasOnly` to `['to', 'template', 'inviteId', 'createdBy']` so a raw `message` is rejected
+2. Add a document to `templates` with ID `invite` and two string fields:
+   - `subject`: `{{inviterName}} shared a list with you on Listless`
+   - `html`: the invite body, referencing `{{inviterName}}` and `{{listName}}`
+3. Use **double** braces, never triple. Double braces HTML-escape the value, which is what stops a list name or display name injecting markup into an email sent from your own sender
 
-The body is then assembled server-side from values the client cannot use to inject arbitrary content.
+The `mail` rule permits `template` and deliberately not `message`, so a client cannot put raw HTML back into an outgoing email. If invites stop sending, check the template document exists and that the extension's Templates collection is set - the rule will reject anything that does not match.
 
 ### Test email delivery
 

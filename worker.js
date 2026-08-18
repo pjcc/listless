@@ -10,6 +10,12 @@ export default {
        satisfied an allowlist of `localhost`. Together those left the proxy
        open to anything that was not a browser. */
     const ALLOWED_ORIGINS = [
+      /* The app is served from the piers.qa custom domain; pjcc.github.io
+         301s there, so that origin only appears for direct hits. The plain
+         http entry is needed only while Pages has Enforce HTTPS off - drop
+         it once that is turned on. */
+      'https://piers.qa',
+      'http://piers.qa',
       'https://pjcc.github.io',
       'http://localhost:8000',
       'http://127.0.0.1:8000',

@@ -72,6 +72,8 @@ Firebase config is embedded in `index.html`. Firestore collections:
 ### Authentication and access control
 - **Mandatory Google sign-in** - no anonymous access to app data
 - **Firestore security rules** - per-collection rules restricting reads/writes to authenticated members only; shared docs write-locked to their creator via `ownerUid`
+- **Share links are readable without signing in, by design** - anyone holding a link can read that list. Enumeration is blocked separately (`get` is public, `list` is denied), so the collection cannot be paged to harvest lists you have not shared with someone
+- **Outbound email is tied to an invite** - a document in `mail` is only accepted if it matches an invite the same user created, addressed to that invite's recipient, so the send path cannot be used as a general relay
 - **Firebase App Check with reCAPTCHA v3** - silently verifies requests come from a real browser running the actual app, blocking scripts and bots from abusing the API
 
 ### API and network protection

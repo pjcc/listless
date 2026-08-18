@@ -1986,7 +1986,7 @@
 
     renderMembersSection();
 
-    membersDiv.addEventListener('click', e => {
+    membersDiv.addEventListener('click', async e => {
       list = getList() || list;
 
       const roleOpt = e.target.closest('.role-option:not(.active):not(.readonly)');
@@ -2023,9 +2023,24 @@
         list.members.push({ uid: '', email, displayName: '', role: 'member', pending: true });
         rebuildMemberArrays(list);
         save();
-        db.collection('invites').add({ email, listId: list.id, invitedBy: currentUser.uid }).catch(() => {});
+        // The mail rules resolve this invite to authorise the send, so it has
+        // to exist first - hence a known id and an awaited write rather than
+        // the previous fire-and-forget pair.
+        const inviteId = uid();
+        try {
+          await db.collection('invites').doc(inviteId).set({
+            email, listId: list.id, invitedBy: currentUser.uid,
+          });
+        } catch (err) {
+          console.warn('[listless] invite write failed, not sending mail:', err);
+          renderMembersSection();
+          renderListMenu();
+          return;
+        }
         db.collection('mail').add({
           to: email,
+          inviteId,
+          createdBy: currentUser.uid,
           message: {
             subject: `${currentUser.displayName || 'Someone'} shared a list with you on Listless`,
             html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="https://pjcc.github.io/listless/">Open Listless</a> and sign in with this email to access it.</p>` /* UPDATE: Replace with your own app URL */

@@ -3,10 +3,19 @@ export default {
     const url = new URL(request.url).searchParams.get('url');
     if (!url) return Response.json({ error: 'Missing url param' }, { status: 400 });
 
-    /* Restrict to your own domains - update these before deploying */
+    /* Restrict to your own domains - update these before deploying.
+       Checked unconditionally and by exact match. The previous form skipped
+       the check whenever Origin was absent, which every non-browser client
+       is, and compared by substring, so `https://localhost.example.com`
+       satisfied an allowlist of `localhost`. Together those left the proxy
+       open to anything that was not a browser. */
+    const ALLOWED_ORIGINS = [
+      'https://pjcc.github.io',
+      'http://localhost:8000',
+      'http://127.0.0.1:8000',
+    ];
     const origin = request.headers.get('Origin') || '';
-    const allowed = ['localhost'];
-    if (origin && !allowed.some(h => origin.includes(h))) {
+    if (!ALLOWED_ORIGINS.includes(origin)) {
       return Response.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -16,10 +25,17 @@ export default {
       if (!/^https?:$/.test(parsed.protocol)) {
         return Response.json({ error: 'Invalid protocol' }, { status: 400 });
       }
-      const host = parsed.hostname;
-      if (host === 'localhost' || host.startsWith('127.') || host.startsWith('10.') ||
-          host.startsWith('192.168.') || host.startsWith('172.') || host === '0.0.0.0' ||
-          host.endsWith('.local') || host.endsWith('.internal') || host === '[::1]') {
+      const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+      /* 169.254.x is the link-local range that cloud metadata endpoints live
+         on, and a bare integer or 0x-prefixed host is still a valid IPv4
+         literal to most resolvers, so both are rejected outright. */
+      const bareNumeric = /^(0x[0-9a-f]+|\d+)$/.test(host);
+      if (bareNumeric || host === 'localhost' || host.startsWith('127.') ||
+          host.startsWith('10.') || host.startsWith('192.168.') ||
+          host.startsWith('172.') || host.startsWith('169.254.') ||
+          host === '0.0.0.0' || host === '::1' || host.startsWith('fe80:') ||
+          host.startsWith('fc') || host.startsWith('fd') ||
+          host.endsWith('.local') || host.endsWith('.internal')) {
         return Response.json({ error: 'Private addresses not allowed' }, { status: 400 });
       }
     } catch {

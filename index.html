@@ -2037,14 +2037,21 @@
           renderListMenu();
           return;
         }
+        // The body is assembled server-side from the templates/invite document,
+        // so the browser only supplies named values and can no longer decide
+        // what gets sent from our verified sender. Handlebars escapes them on
+        // the way in, which is why esc() is not needed here any more.
         db.collection('mail').add({
           to: email,
           inviteId,
           createdBy: currentUser.uid,
-          message: {
-            subject: `${currentUser.displayName || 'Someone'} shared a list with you on Listless`,
-            html: `<p><strong>${esc(currentUser.displayName || currentUser.email)}</strong> invited you to collaborate on <strong>${esc(list.name)}</strong>.</p><p><a href="https://pjcc.github.io/listless/">Open Listless</a> and sign in with this email to access it.</p>` /* UPDATE: Replace with your own app URL */
-          }
+          template: {
+            name: 'invite',
+            data: {
+              inviterName: currentUser.displayName || currentUser.email || 'Someone',
+              listName: list.name,
+            },
+          },
         }).catch(() => {});
         renderMembersSection();
         renderListMenu();

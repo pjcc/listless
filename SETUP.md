@@ -49,7 +49,7 @@ firebase.initializeApp({
 
 ### Set Firestore security rules
 
-Go to **Firestore** > **Rules** and replace with:
+Go to **Firestore** > **Rules** and replace the contents with `firestore.rules` from this repo, which is the source of truth. It is reproduced here for reference:
 
 ```
 rules_version = '2';
@@ -71,16 +71,31 @@ service cloud.firestore {
     }
     match /invites/{inviteId} {
       allow read: if request.auth != null && request.auth.token.email == resource.data.email;
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.invitedBy == request.auth.uid;
       allow delete: if request.auth != null && request.auth.token.email == resource.data.email;
     }
     match /shared/{shareId} {
-      allow read: if true;
+      // A share link resolves one known id, so `get` stays public. `list` is
+      // denied separately: `read` would grant both, letting anyone page the
+      // whole collection and harvest every shared list without a link.
+      allow get: if true;
+      allow list: if false;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
     }
+    // The Trigger Email extension sends anything written here, so an
+    // unconstrained create is an open relay: any signed-in user could mail
+    // arbitrary addresses from this project's sender. Every document must now
+    // correspond to an invite the same user created, addressed to that
+    // invite's recipient.
     match /mail/{mailId} {
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly(['to', 'message', 'inviteId', 'createdBy'])
+                    && request.resource.data.createdBy == request.auth.uid
+                    && exists(/databases/$(database)/documents/invites/$(request.resource.data.inviteId))
+                    && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.invitedBy == request.auth.uid
+                    && get(/databases/$(database)/documents/invites/$(request.resource.data.inviteId)).data.email == request.resource.data.to;
     }
   }
 }
@@ -170,6 +185,19 @@ App Check verifies that requests to Firebase come from your real app, not script
    - **Enable events**: unchecked
 5. Click **Install** (takes ~5 minutes)
 
+### A note on what the mail rules do and do not cover
+
+The extension sends whatever lands in the `mail` collection, so that collection is the sending API. The security rules constrain **who can be emailed**: a document is only accepted if it matches an invite the same user created, addressed to that invite's recipient. Without that, any signed-in user could mail arbitrary addresses from your verified sender.
+
+They do **not** constrain the **body**, which the browser still composes. To close that as well, use the extension's template support instead of raw HTML:
+
+1. Set **Templates collection** to `templates` when configuring the extension
+2. Add a document to `templates` with the invite email as a Handlebars template, e.g. id `invite`, field `subject`: `{{inviterName}} shared a list with you`, field `html`: the body, referencing `{{listName}}`
+3. Have the client write `template: { name: 'invite', data: { inviterName, listName } }` instead of `message`
+4. Tighten the `mail` rule's `hasOnly` to `['to', 'template', 'inviteId', 'createdBy']` so a raw `message` is rejected
+
+The body is then assembled server-side from values the client cannot use to inject arbitrary content.
+
 ### Test email delivery
 
 Add a member to a list in the app, then check Firestore > `mail` collection. The document should have a `delivery` field with `state: SUCCESS`. If it shows an error about account activation, check Brevo for any pending verification steps.
@@ -184,16 +212,36 @@ This fetches page metadata like a real browser for sites that block API scrapers
 2. Name it (e.g. `listless-meta`)
 3. Click **Deploy**, then **Edit code**
 4. Replace the default code with the contents of `worker.js` from this repo
-5. **Before deploying**: update the `allowed` array in the origin check to include your own domains:
+5. **Before deploying**: update the `ALLOWED_ORIGINS` array to list your own origins. These are matched **exactly**, so include the scheme and any port - `piers.qa` will not match `https://piers.qa`, and a custom domain is not the same origin as `your-username.github.io`:
    ```js
-   const allowed = ['your-username.github.io', 'yourcustomdomain.com', 'localhost'];
+   const ALLOWED_ORIGINS = [
+     'https://yourcustomdomain.com',
+     'https://your-username.github.io',
+     'http://localhost:8000',
+   ];
    ```
+   If the app is served from a custom domain, that is the origin the browser sends - not the `github.io` address, which only redirects to it.
 6. Click **Save and deploy**
 7. Note the worker URL (e.g. `https://listless-meta.your-subdomain.workers.dev`)
 
 ### Test the worker
 
-Visit `https://your-worker-url/?url=https://www.amazon.co.uk/dp/B0D3P1KBNB/` in your browser. You should see JSON with title and description.
+**Do not test by visiting the worker URL in your browser.** Typing a URL in the address bar sends no `Origin` header, and the worker refuses exactly that - otherwise any script or curl call could use it as an open proxy. A 403 there is the proxy working, not a fault.
+
+Test with an explicit origin instead:
+
+```bash
+# Expect the metadata JSON
+curl -H "Origin: https://yourcustomdomain.com" "https://your-worker-url/?url=https://www.amazon.co.uk/dp/B0D3P1KBNB/"
+
+# Expect 403 Forbidden - no Origin header
+curl -i "https://your-worker-url/?url=https://example.com"
+
+# Expect 400 - private and link-local addresses are refused
+curl -H "Origin: https://yourcustomdomain.com" "https://your-worker-url/?url=http://169.254.169.254/"
+```
+
+The real end-to-end check is to paste a product link into the app itself and see the title and price fill in.
 
 ## 4. Update index.html
 

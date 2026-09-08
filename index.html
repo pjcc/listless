@@ -152,6 +152,13 @@
 
     .auth-btn:hover { border-color: var(--border-hover); }
 
+    .auth-btn[disabled] {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .auth-btn[disabled]:hover { border-color: var(--border); }
+
     .auth-avatar {
       width: 22px;
       height: 22px;
@@ -1415,21 +1422,59 @@
     }
   }
 
-  authBtn.addEventListener('click', () => {
-    if (currentUser) {
-      openConfirmModal('Sign out?', () => auth.signOut());
-    } else {
-      auth.signInWithPopup(googleProvider).catch(e => {
-        if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
-      });
+  /* Both buttons funnel through one guarded call. A second signInWithPopup
+     while the first is still pending rejects the first with
+     auth/cancelled-popup-request *and closes its window*, so an impatient
+     second click cancels the very flow it looks like it is starting. The
+     popup often opens behind the main window or on another display, which
+     makes that second click the natural thing to do - hence the guard plus a
+     visible busy state rather than relying on the user not clicking twice. */
+  const landingSignInBtn = $('#landingSignIn');
+  let signInPending = false;
+
+  function setSignInBusy(busy) {
+    signInPending = busy;
+    for (const btn of [authBtn, landingSignInBtn]) {
+      if (btn) btn.disabled = busy;
     }
+    if (busy) {
+      authBtn.textContent = 'Signing in...';
+      if (landingSignInBtn) landingSignInBtn.textContent = 'Signing in...';
+    } else {
+      updateAuthUI(currentUser);
+      if (landingSignInBtn) landingSignInBtn.textContent = 'Sign in with Google';
+    }
+  }
+
+  async function signIn() {
+    if (signInPending) return;
+    setSignInBusy(true);
+    try {
+      await auth.signInWithPopup(googleProvider);
+    } catch (e) {
+      if (e.code === 'auth/popup-blocked') {
+        /* The browser refused the popup outright. A full-page redirect cannot
+           be blocked, and onAuthStateChanged picks the result up on return. */
+        try {
+          await auth.signInWithRedirect(googleProvider);
+          return; /* navigating away - leave the busy state as it is */
+        } catch (re) {
+          console.warn('Auth error (redirect fallback):', re);
+        }
+      } else if (e.code !== 'auth/popup-closed-by-user' &&
+                 e.code !== 'auth/cancelled-popup-request') {
+        console.warn('Auth error:', e);
+      }
+    }
+    setSignInBusy(false);
+  }
+
+  authBtn.addEventListener('click', () => {
+    if (currentUser) openConfirmModal('Sign out?', () => auth.signOut());
+    else signIn();
   });
 
-  $('#landingSignIn').addEventListener('click', () => {
-    auth.signInWithPopup(googleProvider).catch(e => {
-      if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
-    });
-  });
+  if (landingSignInBtn) landingSignInBtn.addEventListener('click', signIn);
 
   auth.onAuthStateChanged(async user => {
     currentUser = user;

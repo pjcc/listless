@@ -89,8 +89,19 @@ Two distinct mechanisms, easily confused:
 
 Lines needing per-deployment values are flagged with `/* UPDATE: */` comments. Currently: Firebase config (~line 1091), reCAPTCHA v3 site key (~line 1100), Worker URL (~line 1519). Grep for `UPDATE:` rather than trusting those line numbers.
 
-If you add an outbound host, it must be added to **both** the CSP `connect-src` in the `<meta>` tag at `index.html:6` and, where relevant, the Firebase Auth authorised-domains list. A missing CSP entry fails silently as a blocked request.
+### Four allowlists gate Google sign-in
 
-Do not confuse the Firebase Auth **authorised domains** list (Firebase Console > Authentication > Settings) with the OAuth client's **Authorized JavaScript origins** (Google Cloud > Google Auth Platform > Clients). App origins such as `piers.qa` and `pjcc.github.io` belong in the first only. The second correctly contains just the `authDomain` (`listless-70dd1.firebaseapp.com`), because Firebase runs the OAuth handshake on that handler rather than on the page's own origin - adding app domains there achieves nothing.
+Sign-in has to satisfy four separate lists, two of which are *not* "where the app is served from". A hardening pass tightened those two and silently broke sign-in for months:
+
+1. **CSP `script-src`** (`index.html:6`) - must include `https://www.google.com`. App Check loads reCAPTCHA from `www.google.com/recaptcha/api.js`, **not** `www.recaptcha.net`, despite the latter being the one people put in CSPs
+2. **Google Cloud API key HTTP referrers** - must include `listless-70dd1.firebaseapp.com/*`, not only the app's own domains
+3. **Firebase Auth authorised domains** (Firebase Console > Authentication > Settings) - the app's origins: `piers.qa`, `pjcc.github.io`, `localhost`
+4. **OAuth client Authorized JavaScript origins** (Google Cloud > Clients) - correctly holds only the `authDomain`. Leave it alone; adding app domains there achieves nothing
+
+The reason 1, 2 and 4 are counter-intuitive is the same: the sign-in popup runs on `listless-70dd1.firebaseapp.com` and calls Google with *itself* as the referrer, so any list scoped to the app's own origins wrongly excludes it.
+
+**The failure mode is the dangerous part.** When App Check cannot load, Firebase Auth does not error - it *hangs* waiting for a token, so no popup opens, `signInWithPopup` never settles, and `signInWithRedirect` stalls on the same token. Nothing appears in the console at click time. The only evidence is a CSP violation logged at **page load**, so read that before the click-time console when sign-in fails silently.
+
+If you add any outbound host, add it to the CSP in `index.html:6`. A missing entry fails silently as a blocked request rather than a visible error.
 
 `.gitignore` excludes `LINKS.md` (admin console URLs) and `.claude/`.

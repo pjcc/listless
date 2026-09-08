@@ -119,11 +119,28 @@ Click **Publish**.
    - `yourcustomdomain.com/*` (if applicable)
    - `localhost/*`
    - `127.0.0.1/*`
+   - `YOUR-PROJECT-ID.firebaseapp.com/*` - **required, and easy to miss**
+   - `YOUR-PROJECT-ID.web.app/*`
 6. Click **Save**
+
+The last two are not where your app is served from, which is exactly why they
+get left out. Google sign-in runs its popup on the Firebase `authDomain`
+(`YOUR-PROJECT-ID.firebaseapp.com`), and that page calls
+`identitytoolkit.googleapis.com` with *itself* as the referrer. Restrict the
+key to only your own domains and the popup opens, gets
+`API_KEY_HTTP_REFERRER_BLOCKED`, and closes again before it renders - so
+sign-in fails with nothing visible on screen and nothing in the app's console.
 
 ### Enable App Check (reCAPTCHA v3)
 
 App Check verifies that requests to Firebase come from your real app, not scripts or bots.
+
+> **Before enabling this, check your CSP.** App Check pulls reCAPTCHA from
+> `https://www.google.com/recaptcha/api.js`. If `script-src` does not allow
+> `https://www.google.com`, App Check cannot initialise and Firebase Auth
+> **hangs** rather than failing - sign-in then does nothing at all, with no
+> error at click time. The CSP shipped in `index.html` already allows it; if
+> you write your own, do not omit it.
 
 1. Go to [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin)
 2. Create a new site: type **reCAPTCHA v3**, add your domains (`your-username.github.io`, `localhost`, any custom domains)
@@ -303,6 +320,28 @@ If you have a domain on Cloudflare:
 
 ### "Missing or insufficient permissions" in console
 Your Firestore rules are blocking the operation. Check that the rules from step 1 are published correctly.
+
+### Sign-in does nothing at all - no popup, no error
+
+Check the console output from **page load**, not from the click. If you see
+`Loading the script 'https://www.google.com/recaptcha/api.js' violates ...
+script-src`, App Check never initialised, and Firebase Auth is hanging waiting
+for a token it can never get. Nothing is logged when you click, because
+nothing failed - it is still waiting.
+
+Add `https://www.google.com` to `script-src`, `frame-src` and `connect-src` in
+the CSP `<meta>` tag at the top of `index.html`. Note that App Check loads
+reCAPTCHA from `www.google.com`, **not** `www.recaptcha.net` - allowlisting
+only the latter looks right and does not work.
+
+### Sign-in popup flashes and closes, nothing happens
+
+Open the popup's own console (right-click the popup > Inspect, or check the
+main console for an `iframe.js` 403). If you see
+`API_KEY_HTTP_REFERRER_BLOCKED` naming
+`https://YOUR-PROJECT-ID.firebaseapp.com/`, the API key's website
+restrictions are missing the auth domain - add it as in 'Restrict your API
+key' above.
 
 ### Auth error on file:// protocol
 Firebase Auth requires HTTP. Run `npx serve .` and open `http://localhost:3000`.

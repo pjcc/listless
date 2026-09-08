@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.recaptcha.net https://api.microlink.io https://noembed.com https://listless-meta.piers-carrigan.workers.dev; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; frame-src https://accounts.google.com https://www.recaptcha.net https://*.firebaseapp.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.gstatic.com https://apis.google.com https://www.google.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.recaptcha.net https://www.google.com https://www.gstatic.com https://api.microlink.io https://noembed.com https://listless-meta.piers-carrigan.workers.dev; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https: blob:; frame-src https://accounts.google.com https://www.recaptcha.net https://www.google.com https://*.firebaseapp.com;">
   <title>Listless</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' font-size='80' text-anchor='middle' dominant-baseline='central'>🔗</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
@@ -151,6 +151,13 @@
     }
 
     .auth-btn:hover { border-color: var(--border-hover); }
+
+    .auth-btn[disabled] {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .auth-btn[disabled]:hover { border-color: var(--border); }
 
     .auth-avatar {
       width: 22px;
@@ -1415,21 +1422,79 @@
     }
   }
 
-  authBtn.addEventListener('click', () => {
-    if (currentUser) {
-      openConfirmModal('Sign out?', () => auth.signOut());
-    } else {
-      auth.signInWithPopup(googleProvider).catch(e => {
-        if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
-      });
+  /* Both buttons funnel through one guarded call. A second signInWithPopup
+     while the first is still pending rejects the first with
+     auth/cancelled-popup-request *and closes its window*, so an impatient
+     second click cancels the very flow it looks like it is starting. The
+     popup often opens behind the main window or on another display, which
+     makes that second click the natural thing to do - hence the guard plus a
+     visible busy state rather than relying on the user not clicking twice. */
+  const landingSignInBtn = $('#landingSignIn');
+  let signInPending = false;
+
+  function setSignInBusy(busy) {
+    signInPending = busy;
+    for (const btn of [authBtn, landingSignInBtn]) {
+      if (btn) btn.disabled = busy;
     }
+    if (busy) {
+      authBtn.textContent = 'Signing in...';
+      if (landingSignInBtn) landingSignInBtn.textContent = 'Signing in...';
+    } else {
+      updateAuthUI(currentUser);
+      if (landingSignInBtn) landingSignInBtn.textContent = 'Sign in with Google';
+    }
+  }
+
+  async function signInByRedirect() {
+    /* A full-page redirect cannot be blocked, and onAuthStateChanged picks the
+       result up when the browser comes back. */
+    try {
+      await auth.signInWithRedirect(googleProvider);
+      return true; /* navigating away - leave the busy state as it is */
+    } catch (e) {
+      console.warn('Auth error (redirect fallback):', e);
+      return false;
+    }
+  }
+
+  async function signIn() {
+    if (signInPending) return;
+    setSignInBusy(true);
+
+    /* signInWithPopup never settles if the popup silently fails to appear -
+       blocked, or opened and lost - which would strand the button on
+       'Signing in...' with no way back except a reload. Give it a bounded
+       window, then fall back to the redirect flow. */
+    let timer;
+    const timedOut = Symbol('timeout');
+    const watchdog = new Promise(res => { timer = setTimeout(() => res(timedOut), 8000); });
+
+    try {
+      const outcome = await Promise.race([auth.signInWithPopup(googleProvider), watchdog]);
+      if (outcome === timedOut) {
+        console.warn('Auth: no popup after 8s, falling back to redirect');
+        if (await signInByRedirect()) return;
+      }
+    } catch (e) {
+      if (e.code === 'auth/popup-blocked') {
+        if (await signInByRedirect()) return;
+      } else if (e.code !== 'auth/popup-closed-by-user' &&
+                 e.code !== 'auth/cancelled-popup-request') {
+        console.warn('Auth error:', e);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    setSignInBusy(false);
+  }
+
+  authBtn.addEventListener('click', () => {
+    if (currentUser) openConfirmModal('Sign out?', () => auth.signOut());
+    else signIn();
   });
 
-  $('#landingSignIn').addEventListener('click', () => {
-    auth.signInWithPopup(googleProvider).catch(e => {
-      if (e.code !== 'auth/popup-closed-by-user') console.warn('Auth error:', e);
-    });
-  });
+  if (landingSignInBtn) landingSignInBtn.addEventListener('click', signIn);
 
   auth.onAuthStateChanged(async user => {
     currentUser = user;
